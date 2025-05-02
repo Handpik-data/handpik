@@ -1,0 +1,25 @@
+{
+    "version": 1,
+    "formatters": {
+        "detailed": {
+            "format": "%(asctime)s [%(levelname)s] - %(module)s - Worker: %(process)d - %(message)s"
+        }
+    },
+    "handlers": {
+        "zeenwoman_handler": {
+            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+            "formatter": "detailed",
+            "filename": "./logs/zeenwoman.log",
+            "when": "midnight",
+            "interval": 1,
+            "backupCount": 30,
+            "delay": true
+        }
+    },
+    "loggers": {
+        "zeenwoman": {
+            "handlers": ["zeenwoman_handler"],
+            "level": "INFO"
+        }
+    }
+}
