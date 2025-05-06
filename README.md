@@ -12,6 +12,10 @@
     ```bash
     pip install -r requirements.txt
 
-3. Usage
+3. create logs folder
+    ```bash
+    mkdir logs
+
+4. Usage
     ```bash
     python main.py
