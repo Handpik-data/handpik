@@ -1,6 +1,6 @@
 __pycache__/
 *.py[cod]
 venv/
-logs/*.log
+logs/*.log*
 scrapers/*/*.json
 *.lock

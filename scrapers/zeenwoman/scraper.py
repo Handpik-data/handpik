@@ -1,6 +1,8 @@
 import os
 import re
 import json
+import asyncio
+import aiohttp
 import requests
 from bs4 import BeautifulSoup
 from typing import List, Dict
@@ -16,7 +18,7 @@ class ZeeWomanScraper(BaseScraper):
         )
         self.module_dir = os.path.dirname(os.path.abspath(__file__))
 
-    def get_unique_urls_from_file(self, filename):
+    async def get_unique_urls_from_file(self, filename):
         if not isinstance(filename, str) or not filename.strip():
             raise ValueError("Filename must be a non-empty string.")
         
@@ -26,7 +28,7 @@ class ZeeWomanScraper(BaseScraper):
         with open(filename, 'r') as file:
             return list(set(line.strip() for line in file if line.strip()))
         
-    def scrape_pdp(self, product_link):
+    async def scrape_pdp(self, product_link):
         response = requests.get(product_link)
         response.raise_for_status()
 
@@ -40,7 +42,8 @@ class ZeeWomanScraper(BaseScraper):
             'save_percent': None,
             'images': [],
             'attributes': {},
-            'product_link': product_link
+            'product_link': product_link,
+            'variants': []
         }
 
         product_container = soup.find('div', {'class': 't4s-product__info-container'})
@@ -145,10 +148,54 @@ class ZeeWomanScraper(BaseScraper):
                     if img_url not in product_data['images']:
                         product_data['images'].append(img_url)
 
+        variants_tag = soup.find('script', class_='pr_variants_json')
+        if variants_tag:
+            try:
+                variants_json = json.loads(variants_tag.string.strip())
+            except Exception:
+                variants_json = []
+        else:
+            variants_json = []
 
+        options_tag = soup.find('script', class_='pr_options_json')
+        if options_tag:
+            try:
+                options_json = json.loads(options_tag.string.strip())
+            except Exception:
+                options_json = []
+        else:
+            options_json = []
+
+        idx_to_optname = {}
+        for opt in options_json:
+            pos = opt.get('position', 1)
+            opt_name = opt.get('name') or f"Option{pos}"
+            idx_to_optname[pos] = opt_name
+
+        all_variant_combos = []
+
+        for variant in variants_json:
+            combo_dict = {}
+
+            for i in range(1, 11):
+                key_opt = f"option{i}"
+                if key_opt in variant:
+                    opt_val = variant[key_opt]
+                    if not opt_val:  
+                        break
+
+                    attribute_name = idx_to_optname.get(i, f"Option{i}")
+                    combo_dict[attribute_name] = opt_val
+                else:
+                    break
+
+            combo_dict["in_stock"] = variant.get("available", False)
+            all_variant_combos.append(combo_dict)
+
+        product_data["variants"] = all_variant_combos
         return product_data
 
-    def scrape_products_links(self, url):
+    async def scrape_products_links(self, url):
         all_product_links = []
         page_number = 1
         current_url = url
@@ -181,22 +228,22 @@ class ZeeWomanScraper(BaseScraper):
         
         return all_product_links
 
-    def scrape_category(self, url):
+    async def scrape_category(self, url):
         all_products = []
 
-        all_products_links =  self.scrape_products_links(url)
+        all_products_links = await self.scrape_products_links(url)
         for product_link in all_products_links:
-            pdp_data = self.scrape_pdp(product_link)
+            pdp_data = await self.scrape_pdp(product_link)
             all_products.append(pdp_data)
         
         return all_products
     
-    def scrape_data(self):
+    async def scrape_data(self):
         final_data = []
         try:
-            category_urls = self.get_unique_urls_from_file(os.path.join(self.module_dir, "categories.txt"))
+            category_urls = await self.get_unique_urls_from_file(os.path.join(self.module_dir, "categories.txt"))
             for url in category_urls:
-                products = self.scrape_category(url)
+                products = await self.scrape_category(url)
                 final_data.extend(products)
                 
             if final_data:
@@ -205,7 +252,7 @@ class ZeeWomanScraper(BaseScraper):
                 output_path = os.path.join(self.module_dir, output_file)
                 with open(output_path, "w", encoding="utf-8") as f:
                     json.dump(final_data, f, indent=4, ensure_ascii=False)
-                self.log_info(f"Saved {len(final_data)} products into products.json")
+                self.log_info(f"Saved {len(final_data)} products into ZeenWomanProducts.json")
             else:
                 self.log_error("No data scraped")
                         
