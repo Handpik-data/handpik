@@ -14,11 +14,37 @@
             "interval": 1,
             "backupCount": 30,
             "delay": true
+        },
+        "wovworld_handler": {
+            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+            "formatter": "detailed",
+            "filename": "./logs/wovworld.log",
+            "when": "midnight",
+            "interval": 1,
+            "backupCount": 30,
+            "delay": true
+        },
+        "sulafah_handler": {
+            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+            "formatter": "detailed",
+            "filename": "./logs/sulafah.log",
+            "when": "midnight",
+            "interval": 1,
+            "backupCount": 30,
+            "delay": true
         }
     },
     "loggers": {
         "zeenwoman": {
             "handlers": ["zeenwoman_handler"],
+            "level": "INFO"
+        },
+        "wovworld": {
+            "handlers": ["wovworld_handler"],
+            "level": "INFO"
+        },
+        "sulafah": {
+            "handlers": ["sulafah_handler"],
             "level": "INFO"
         }
     }

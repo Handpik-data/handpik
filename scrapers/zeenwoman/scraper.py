@@ -248,7 +248,7 @@ class ZeeWomanScraper(BaseScraper):
                 
             if final_data:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-                output_file = f"products_{timestamp}.json"
+                output_file = f"ZeenWomanProducts_{timestamp}.json"
                 output_path = os.path.join(self.module_dir, output_file)
                 with open(output_path, "w", encoding="utf-8") as f:
                     json.dump(final_data, f, indent=4, ensure_ascii=False)
