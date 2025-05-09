@@ -1,0 +1,287 @@
+from bs4 import BeautifulSoup
+import requests
+import time
+import json
+import re
+from urllib.parse import urljoin, urlparse, parse_qs, urlencode, urlunparse
+
+base_url = "https://pk.khaadi.com"
+start_urls = [
+    "https://pk.khaadi.com/new-in/fabrics/?start=0&sz=79",
+    "https://pk.khaadi.com/fabrics/essentials/3-piece/?start=0&sz=350",
+    "https://pk.khaadi.com/fabrics/signature/3-piece/?start=0&sz=58",
+    "https://pk.khaadi.com/ready-to-wear/essentials/tailored-3-piece/",
+    "https://pk.khaadi.com/ready-to-wear/essentials/kurta/?start=0&sz=350",
+    "https://pk.khaadi.com/ready-to-wear/essentials/pants/?start=0&sz=366",
+    "https://pk.khaadi.com/ready-to-wear/essentials/shalwar/",
+    "https://pk.khaadi.com/ready-to-wear/essentials/dupatta/",
+    "https://pk.khaadi.com/ready-to-wear/essentials/shawl/",
+    "https://pk.khaadi.com/ready-to-wear/signature/tailored-3-piece/",
+    "https://pk.khaadi.com/ready-to-wear/signature/kurta/?start=0&sz=82",
+    "https://pk.khaadi.com/ready-to-wear/signature/pants/?start=0&sz=55",
+    "https://pk.khaadi.com/ready-to-wear/signature/shalwar/",
+    "https://pk.khaadi.com/ready-to-wear/signature/dupatta/",
+    "https://pk.khaadi.com/ready-to-wear/signature/jacket/",
+    "https://pk.khaadi.com/ready-to-wear/casuals/shirt/",
+    "https://pk.khaadi.com/ready-to-wear/casuals/t-shirt/",
+    "https://pk.khaadi.com/ready-to-wear/casuals/blouse/",
+    "https://pk.khaadi.com/ready-to-wear/casuals/tunic/",
+    "https://pk.khaadi.com/ready-to-wear/casuals/sweater/",
+    "https://pk.khaadi.com/ready-to-wear/casuals/maxi-dress/",
+    "https://pk.khaadi.com/ready-to-wear/casuals/sweatshirt/",
+    "https://pk.khaadi.com/ready-to-wear/casuals/hoodie/",
+    "https://pk.khaadi.com/ready-to-wear/casuals/jacket/",
+    "https://pk.khaadi.com/ready-to-wear/casuals/trousers/",
+    "https://pk.khaadi.com/ready-to-wear/casuals/jeans/",
+    "https://pk.khaadi.com/ready-to-wear/casuals/tank-top/",
+    "https://pk.khaadi.com/ready-to-wear/casuals/tights/",
+    "https://pk.khaadi.com/fragrances/body-mist/",
+    "https://pk.khaadi.com/fragrances/eau-de-parfum/",
+    "https://pk.khaadi.com/fragrances/gift-set/",
+    "https://pk.khaadi.com/home/coaster/",
+    "https://pk.khaadi.com/home/cushion-cover/",
+    "https://pk.khaadi.com/home/envelopes/?start=0&sz=53",
+    "https://pk.khaadi.com/home/table-mat/",
+    "https://pk.khaadi.com/home/table-runner/"
+
+
+]
+
+headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Accept-Language': 'en-US,en;q=0.9',
+}
+
+def add_pagination_params(url, start=0, page_size=60):
+    
+    parsed = urlparse(url)
+    query = parse_qs(parsed.query)
+    query['start'] = [str(start)]
+    query['sz'] = [str(page_size)]
+    new_query = urlencode(query, doseq=True)
+    return urlunparse(parsed._replace(query=new_query))
+
+def scrape_products_links(base_category_url):
+    print(f"🌐 Loading page: {base_category_url}")
+    all_products_links = []
+    page_size = 60  
+    start = 0
+    
+    while True:
+        paginated_url = add_pagination_params(base_category_url, start, page_size)
+        print(f"📖 Fetching page: {paginated_url}")
+        
+        try:
+            response = requests.get(paginated_url, headers=headers)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            products = (soup.select('div.product-item-info') or 
+                       soup.select('div.product-item') or 
+                       soup.select('div.product-tile') or 
+                       soup.select('div.product') or
+                       soup.select('div.product.details.product-item-details'))
+            
+            if not products:
+                print("⏹️ No more products found")
+                break
+                
+            current_page_links = []
+            for product in products:
+                link_tag = (product.select_one('a.product-item-link') or
+                           product.select_one('a.product-item-photo') or
+                           product.select_one('.product.photo.product-item-photo a') or
+                           product.select_one('.product.details.product-item-details a') or
+                           product.select_one('a[href*="/fabrics/"]') or
+                           product.select_one('a[href]'))
+                
+                if link_tag:
+                    href = link_tag.get("href")
+                    if href and href not in all_products_links:
+                        href = urljoin(base_url, href)
+                        current_page_links.append(href)
+            
+            if not current_page_links:
+                print("⏹️ No new links found on this page")
+                break
+                
+            print(f"✅ Found {len(current_page_links)} new product links on this page")
+            all_products_links.extend(current_page_links)
+            start += page_size
+            
+            # Check if we've reached the end (some sites show total count)
+            total_count_element = soup.select_one('.total-count')
+            if total_count_element:
+                try:
+                    total_count = int(re.search(r'\d+', total_count_element.text).group())
+                    if start >= total_count:
+                        break
+                except:
+                    pass
+            
+            # Small delay to be polite
+            time.sleep(1)
+            
+        except Exception as e:
+            print(f"❌ Error fetching page: {str(e)}")
+            break
+    
+    print(f"✅ Found {len(all_products_links)} total product links")
+    return all_products_links
+
+def scrape_pdp(product_link):
+    print(f"📦 Scraping product: {product_link}")
+    try:
+        response = requests.get(product_link, headers=headers)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.content, 'html.parser')
+
+        product_data = {
+            'product_id': None,
+            'product_name': None,
+            'product_title': None,
+            'sku': None,
+            'price': None,
+            'currency': None,
+            'before_price': None,
+            'after_price': None,
+            'brand_info': None,
+            'attributes': {},
+            'images': [],
+            'breadcrumbs': [],
+            'description': {},
+            'availability': None,
+            'product_details': {},
+            'product_url': product_link
+        }
+
+        product_container = soup.find('div', {'class': 'product-detail'})
+        if not product_container:
+            return {'error': 'Product container not found', 'product_url': product_link}
+
+        # Product ID
+        product_data['product_id'] = product_container.get('data-pid')
+
+        # Product name
+        name_element = soup.find(['h1', 'h2'], {'class': 'product-name'})
+        if name_element:
+            product_data['product_name'] = name_element.text.strip()
+
+        # Product title (brand)
+        title_element = soup.find('div', {'class': 'product-brand'})
+        if title_element:
+            product_data['product_title'] = title_element.text.strip()
+
+        # SKU
+        sku_element = soup.find('div', {'class': 'product-number'})
+        if sku_element and sku_element.find('span'):
+            product_data['sku'] = sku_element.find('span').text.strip()
+
+        # Before price
+        before_price = soup.find('span', {'class': 'value cc-price', 'style': 'text-decoration:line-through;'})
+        if before_price:
+            match = re.search(r'PKR\s*([\d,]+(?:\.\d+)?)', before_price.text.strip())
+            if match:
+                product_data['before_price'] = match.group(1).replace(',', '')
+
+        # After price
+        after_price = soup.find('span', {'class': 'value cc-price', 'content': True})
+        if after_price:
+            match = re.search(r'PKR\s*([\d,]+(?:\.\d+)?)', after_price.text.strip())
+            if match:
+                product_data['after_price'] = match.group(1).replace(',', '')
+
+        # Final price (and currency)
+        price = soup.find('span', {'class': 'sales'})
+        if price:
+            match = re.search(r'([A-Z]{3})\s*([\d,]+(?:\.\d+)?)', price.text.strip())
+            if match:
+                product_data['currency'] = match.group(1)
+                product_data['price'] = match.group(2).replace(',', '')
+
+        # Brand info (same as product title)
+        product_data['brand_info'] = product_data['product_title']
+
+        # Product images
+        image_elements = soup.select('.pdp-image-carousel .item img')
+        for img in image_elements:
+            src = img.get('src') or img.get('data-src')
+            if src and src not in product_data['images']:
+                product_data['images'].append(urljoin(base_url, src))
+
+        # Breadcrumbs
+        for crumb in soup.select('.breadcrumb .breadcrumb-item a span'):
+            product_data['breadcrumbs'].append(crumb.text.strip())
+
+        # Product description/specs (attribute list with <li>)
+        for attr in soup.select('.spec-list li'):
+            strong = attr.find('strong')
+            if strong:
+                key = strong.text.strip().replace(':', '')
+                value = attr.text.strip().replace(strong.text.strip(), '').strip()
+                product_data['description'][key] = value
+
+        # Product details (grouped specs under titles like "Fabric", "Care Instructions")
+        for section in soup.select('.spec-list-title'):
+            title = section.text.strip()
+            ul = section.find_next('ul')
+            details = {}
+            if ul:
+                for li in ul.find_all('li'):
+                    strong = li.find('strong')
+                    if strong:
+                        key = strong.text.strip().replace(':', '')
+                        value = li.text.strip().replace(strong.text.strip(), '').strip()
+                        details[key] = value
+                    else:
+                        # If no <strong>, just add plain text
+                        text = li.text.strip()
+                        if text:
+                            details[text] = None
+                product_data['product_details'][title] = details
+
+        # Product availability
+        availability = soup.find('div', {'class': 'product-availability'})
+        if availability:
+            product_data['availability'] = {
+                'ready_to_order': availability.get('data-ready-to-order') == 'true',
+                'available': availability.get('data-available') == 'true'
+            }
+
+        return product_data
+
+    except Exception as e:
+        print(f"❌ Error scraping product page: {str(e)}")
+        return {'error': str(e), 'product_url': product_link}
+
+def scrape_khaadi(url):
+    all_products = []
+    product_links = scrape_products_links(url)
+    
+    for link in product_links:
+        try:
+            product_data = scrape_pdp(link)
+            all_products.append(product_data)
+            print(f"✔️ Scraped: {product_data.get('product_name', 'Unknown')}")
+            # Small delay between requests
+            time.sleep(1)
+        except Exception as e:
+            print(f"❌ Failed to scrape {link}: {str(e)}")
+            continue
+    
+    return all_products
+
+if __name__ == "__main__":
+    final_data = []
+    
+    for url in start_urls:
+        print(f"\n🚀 Starting scrape for: {url}")
+        products = scrape_khaadi(url)
+        final_data.extend(products)
+    
+    if final_data:
+        with open("khaadi_products__all.json", "w", encoding="utf-8") as f:
+            json.dump(final_data, f, indent=4, ensure_ascii=False)
+        print(f"\n🎉 Success! Saved {len(final_data)} products to khaadi_products__all.json")
+    else:
+        print("\n❌ No products were scraped. Please check the selectors or website structure.")
