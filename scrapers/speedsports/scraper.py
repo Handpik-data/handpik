@@ -5,13 +5,13 @@ import re
 from bs4 import BeautifulSoup
 from interfaces.base_scraper import BaseScraper
 from datetime import datetime
-from utils.LoggerConstants import SULFAH_LOGGER
+from utils.LoggerConstants import SPEEDSPORTS_LOGGER
 
-class SulafahScraper(BaseScraper):
+class SpeedSportsScraper(BaseScraper):
     def __init__(self):
         super().__init__(
-            base_url="https://sulafah.com.pk",
-            logger_name=SULFAH_LOGGER
+            base_url="https://speedsports.pk",
+            logger_name=SPEEDSPORTS_LOGGER
         )
         self.module_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -136,13 +136,13 @@ class SulafahScraper(BaseScraper):
                 
             if final_data:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-                output_file = f"sulafahProducts_{timestamp}.json"
+                output_file = f"speedSportsProducts_{timestamp}.json"
                 output_path = os.path.join(self.module_dir, output_file)
                 with open(output_path, "w", encoding="utf-8") as f:
                     json.dump(final_data, f, indent=4, ensure_ascii=False)
                 
                 self.log_info(f"Total {len(category_urls)} categories")
-                self.log_info(f"Saved {len(final_data)} products into sulafahProducts.json")
+                self.log_info(f"Saved {len(final_data)} products into speedSportsProducts.json")
                 self.log_info(f"Product Sample Data: {json.dumps(final_data[0], separators=(',', ':'))}")
 
             else:

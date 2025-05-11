@@ -32,6 +32,15 @@
             "interval": 1,
             "backupCount": 30,
             "delay": true
+        },
+        "sputnik_handler": {
+            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+            "formatter": "detailed",
+            "filename": "./logs/sputnik.log",
+            "when": "midnight",
+            "interval": 1,
+            "backupCount": 30,
+            "delay": true
         }
     },
     "loggers": {
@@ -46,6 +55,10 @@
         "sulafah": {
             "handlers": ["sulafah_handler"],
             "level": "INFO"
+        },
+        "sputnik": {
+            "handlers": ["sputnik_handler"],
+            "level": "INFO"            
         }
     }
 }
