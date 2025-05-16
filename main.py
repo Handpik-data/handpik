@@ -4,6 +4,8 @@ import asyncio
 from scrapers.zeenwoman.scraper import ZeeWomanScraper
 from scrapers.wovworld.scraper import WovWorldScraper
 from scrapers.sputnikfootwear.scraper import SputnikFootWearScraper
+from scrapers.speedsports.scraper import SpeedSportsScraper
+from scrapers.sheepofficial.scraper import SheepOfficialScraper
 
 def setup_logging():
     with open("utils/logging_config.json") as f:
@@ -12,7 +14,7 @@ def setup_logging():
 
 async def main():
     setup_logging()
-    scraper = SputnikFootWearScraper()
+    scraper = SheepOfficialScraper()
     await scraper.scrape_data()
 
 if __name__ == "__main__":

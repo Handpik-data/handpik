@@ -41,6 +41,24 @@
             "interval": 1,
             "backupCount": 30,
             "delay": true
+        },
+        "speedSports_handler": {
+            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+            "formatter": "detailed",
+            "filename": "./logs/speedsports.log",
+            "when": "midnight",
+            "interval": 1,
+            "backupCount": 30,
+            "delay": true
+        },
+        "sheepOfficial_handler": {
+            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+            "formatter": "detailed",
+            "filename": "./logs/sheepofficial.log",
+            "when": "midnight",
+            "interval": 1,
+            "backupCount": 30,
+            "delay": true
         }
     },
     "loggers": {
@@ -58,6 +76,14 @@
         },
         "sputnik": {
             "handlers": ["sputnik_handler"],
+            "level": "INFO"            
+        },
+        "speedsports": {
+            "handlers": ["speedSports_handler"],
+            "level": "INFO"            
+        },
+        "sheepofficial": {
+            "handlers": ["sheepOfficial_handler"],
             "level": "INFO"            
         }
     }

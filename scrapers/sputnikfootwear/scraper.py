@@ -6,6 +6,8 @@ from bs4 import BeautifulSoup
 from interfaces.base_scraper import BaseScraper
 from datetime import datetime
 from utils.LoggerConstants import SPUTNIK_LOGGER
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
 
 class SputnikFootWearScraper(BaseScraper):
     def __init__(self):
@@ -26,8 +28,25 @@ class SputnikFootWearScraper(BaseScraper):
             return list(set(line.strip() for line in file if line.strip()))
         
     async def scrape_pdp(self, product_link):
-        response = requests.get(product_link)
-        response.raise_for_status()
+        session = requests.Session()
+        retries = Retry(
+            total=3,
+            backoff_factor=0.5,
+            status_forcelist=[505, 506, 507, 508],
+            allowed_methods=frozenset(['GET', 'POST'])
+        )
+        session.mount('https://', HTTPAdapter(max_retries=retries))
+
+        # Make request with SSL context modification
+        response = session.get(
+            product_link,
+            verify=False,  # Bypass SSL verification
+            headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            },
+            timeout=15
+        )
+
 
         soup = BeautifulSoup(response.text, 'html.parser')
 
@@ -71,11 +90,13 @@ class SputnikFootWearScraper(BaseScraper):
             img.replace('//', 'https://') for img in all_images
         ]
         variants_list = product_json.get('variants', [])
-
+        product_options = product_json.get('options', [])
         for v in variants_list:
             variant_info = {}
-            variant_info['size'] = v.get('option1')
-            variant_info['color'] = v.get('option2')
+            count = 1
+            for i in product_options:
+             variant_info[i] = v.get('option'+str(count))
+             count = count + 1
             variant_info['available'] = v.get('available', False)
             variant_info['price'] = v['price'] / 100.0 if v.get('price') else None
             variant_info['original_price'] = (v['compare_at_price'] / 100.0 

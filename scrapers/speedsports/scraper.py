@@ -6,6 +6,8 @@ from bs4 import BeautifulSoup
 from interfaces.base_scraper import BaseScraper
 from datetime import datetime
 from utils.LoggerConstants import SPEEDSPORTS_LOGGER
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
 
 class SpeedSportsScraper(BaseScraper):
     def __init__(self):
@@ -14,6 +16,7 @@ class SpeedSportsScraper(BaseScraper):
             logger_name=SPEEDSPORTS_LOGGER
         )
         self.module_dir = os.path.dirname(os.path.abspath(__file__))
+        self.a = 1
 
     async def get_unique_urls_from_file(self, filename):
         if not isinstance(filename, str) or not filename.strip():
@@ -26,61 +29,135 @@ class SpeedSportsScraper(BaseScraper):
             return list(set(line.strip() for line in file if line.strip()))
         
     async def scrape_pdp(self, product_link):
-        response = requests.get(product_link)
-        response.raise_for_status()
+        try:
+            session = requests.Session()
+            retries = Retry(
+                total=3,
+                backoff_factor=0.5,
+                status_forcelist=[500, 502, 503, 504],
+                allowed_methods=frozenset(['GET', 'POST'])
+            )
+            session.mount('https://', HTTPAdapter(max_retries=retries))
 
-        soup = BeautifulSoup(response.text, 'html.parser')
+            response = session.get(
+                product_link,
+                verify=False,
+                headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                },
+                timeout=15
+            )
 
-        title_tag = soup.select_one('.product-info__block-item[data-block-type="title"] .product-title')
-        title = title_tag.get_text(strip=True) if title_tag else None
-
-        sale_price_tag = soup.select_one('.price-list--product sale-price .money')
-        sale_price = re.sub(r'[^0-9.]', '', sale_price_tag.get_text(strip=True))[1:] if sale_price_tag else None
-
-        compare_price_tag = soup.select_one('.price-list--product compare-at-price:not([hidden]) .money')
-        compare_price = re.sub(r'[^0-9.]', '', compare_price_tag.get_text(strip=True))[1:] if compare_price_tag else None
-
-
-        desc_section = soup.select_one('.product-info__block-item[data-block-type="description"] .prose')
-        description = desc_section.get_text("\n", strip=True) if desc_section else None
-
-        images = []
-        for media in soup.select('.product-gallery__carousel .product-gallery__media'):
-            img_tag = media.find('img')
-            if img_tag and img_tag.get('src'):
-                photo_url = img_tag['src']
-                photo_url = f"https:{photo_url}" if photo_url.startswith('//') else photo_url
-                images.append(photo_url)
-
-        scripts = soup.find_all('script', type='application/ld+json')
-
-        sizes = []
-
-        for script in scripts:
-            try:
-                data = json.loads(script.string)
-
-                if isinstance(data, dict) and data.get('@type') == 'Product' and 'offers' in data:
-                    for offer in data['offers']:
-                        size_str = offer.get('name')
-                        availability_url = offer.get('availability')
-                        
-                        if size_str and size_str.isdigit():
-                            size = int(size_str)
-                            availability = 'InStock' in availability_url
-                            sizes.append({'size': size, 'availability': availability})
-            except (json.JSONDecodeError, TypeError):
-                continue
+            soup = BeautifulSoup(response.text, 'html.parser')
         
-        product_data = {
-            'title': title,
-            'price': sale_price,
-            'compare_at_price': compare_price,
-            'description': description,
-            'images': images,
-            'sizes': sizes,
-            'url': product_link
-        }
+            product_data = {}
+
+            product_data['url'] = product_link
+            title_el = soup.select_one('h1.t4s-product__title')
+            product_data['title'] = title_el.get_text(strip=True) if title_el else None
+
+            price_container = soup.select_one('div.t4s-product-price')
+            if price_container:
+                del_el = price_container.find('del')
+                ins_el = price_container.find('ins')
+                badge_el = price_container.find('span', class_='t4s-badge-price')
+
+                def clean_price(text):
+                    return text.replace('Rs.', '').replace(',', '').strip()
+
+                if del_el and ins_el:
+                    product_data['price_original'] = clean_price(del_el.get_text())
+                    product_data['price_discounted'] = clean_price(ins_el.get_text())
+                else:
+                    product_data['price'] = clean_price(price_container.get_text())
+
+                if badge_el:
+                    match = re.search(r'(\d+)%', badge_el.get_text())
+                    if match:
+                        product_data['discount_percent'] = match.group(1)
+
+
+            sku_el = soup.select_one('[data-product__sku-number]')
+            product_data['sku'] = sku_el.get_text(strip=True) if sku_el else None
+
+            product_ld_json = soup.find('script', type='application/ld+json', text=re.compile('"@type": "Product"'))
+            brand = None
+            description = None
+
+            if product_ld_json:
+                try:
+                    json_str = product_ld_json.string.strip()
+                    
+                    json_str = re.sub(r'"sku":\s*"(.*?)"",', lambda m: f'"sku": "{m.group(1)}",', json_str)
+                    
+                    json_str = (json_str
+                                .replace('\\u0026quot;', '"')
+                                .replace('\\u0026#39;', "'")
+                                .replace('&quot;', '"')
+                                .replace('&#39;', "'"))
+                    
+                    ld_data = json.JSONDecoder().decode(json_str)
+                    
+                    brand = ld_data.get('brand', {}).get('name')
+                    description = ld_data.get('description', '')
+                    
+                    description = description.replace('\n', ' ').strip()
+                    
+                except Exception as e:
+                    pass
+            product_data['brand'] = brand
+            product_data['description'] = description
+                
+
+            images = []
+            main_slides = soup.select('[data-product-single-media-group] [data-main-slide]')
+            for slide in main_slides:
+                img_el = slide.select_one('img[data-master]')
+                if img_el:
+                    master_url = img_el.get('data-master')
+                    if master_url:
+                        images.append("https:" + master_url)
+            product_data['images'] = images
+
+        
+            variants_data = []
+            variants_json_el = soup.find('script', class_='pr_variants_json', type='application/json')
+            if variants_json_el and variants_json_el.string:
+                try:
+                    variants_list = json.loads(variants_json_el.string)
+                    
+                    options_json_el = soup.find('script', class_='pr_options_json', type='application/json')
+                    option_names = []
+                    if options_json_el and options_json_el.string:
+                        options_data = json.loads(options_json_el.string)
+                        sorted_options = sorted(options_data, key=lambda x: x['position'])
+                        option_names = [opt['name'] for opt in sorted_options]
+                    
+
+                    for var_obj in variants_list:
+                        variant_options = {}
+                        options = var_obj.get('options', [])
+                        for idx, value in enumerate(options):
+                            if idx < len(option_names):
+                                key = option_names[idx]
+                                variant_options[key] = value
+                        
+                        v_data = {
+                            'title': var_obj.get('title'),
+                            'price': var_obj.get('price') / 100, 
+                            'sku': var_obj.get('sku'),
+                            'available': var_obj.get('available'),
+                            **variant_options
+                        }
+                        variants_data.append(v_data)
+                except Exception as e:
+                    self.log_error(f"Error parsing variants JSON: {e}")
+
+            product_data['variants'] = variants_data
+
+        except Exception as e:
+            self.log_error(f"Error scraping product data from {product_link}: {e}")
+
         return product_data
 
     async def scrape_products_links(self, url):
@@ -93,20 +170,25 @@ class SpeedSportsScraper(BaseScraper):
                 response = requests.get(current_url, headers=self.headers, timeout=10)
                 response.raise_for_status()
                 
-                soup = BeautifulSoup(response.text, 'html.parser')    
-                product_divs = soup.find_all("product-card", class_="product-card")   
-                
-                if not product_divs: 
+                soup = BeautifulSoup(response.text, 'html.parser')   
+
+                main_div = soup.find('div', class_='t4s-main-collection-page')
+
+                if main_div:
+                    collection_url = main_div.get('data-collection-url')
+
+                    product_links = main_div.find_all('a', class_='t4s-full-width-link')
+                    if not product_links:
+                        self.log_info(f"No products found on page {page_number}. Stopping.")
+                        break
+                    
+                    for link in product_links:
+                        href = link.get('href')
+                        all_product_links.append(self.base_url + collection_url + href)
+                else:
                     self.log_info(f"No products found on page {page_number}. Stopping.")
                     break
-                  
-                for product in product_divs:
-                    link_tag = product.find("a", class_="product-card__media")
-                    if link_tag and link_tag.has_attr("href"):
-                        product_url = f"{self.base_url}{link_tag['href']}"
-                        if product_url not in all_product_links:
-                            all_product_links.append(product_url)
-                
+                            
                 page_number += 1
                 current_url = f"{url}?page={page_number}" if "?" not in url else f"{url}&page={page_number}"
                 
@@ -118,7 +200,6 @@ class SpeedSportsScraper(BaseScraper):
 
     async def scrape_category(self, url):
         all_products = []
-
         all_products_links = await self.scrape_products_links(url)
         for product_link in all_products_links:
             pdp_data = await self.scrape_pdp(product_link)
@@ -149,4 +230,4 @@ class SpeedSportsScraper(BaseScraper):
                 self.log_error("No data scraped")
                         
         except Exception as e:
-            self.log_error(f"Error: {e}")    
+            self.log_error(f"Error: {e}")  
