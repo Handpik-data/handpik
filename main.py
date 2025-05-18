@@ -6,6 +6,8 @@ from scrapers.wovworld.scraper import WovWorldScraper
 from scrapers.sputnikfootwear.scraper import SputnikFootWearScraper
 from scrapers.speedsports.scraper import SpeedSportsScraper
 from scrapers.sheepofficial.scraper import SheepOfficialScraper
+from scrapers.shaffer.scraper import ShafferScraper
+from scrapers.sapphireonline.scraper import SapphireScraper
 
 def setup_logging():
     with open("utils/logging_config.json") as f:

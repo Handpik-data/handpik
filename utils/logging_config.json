@@ -59,6 +59,24 @@
             "interval": 1,
             "backupCount": 30,
             "delay": true
+        },
+        "shaffer_handler": {
+            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+            "formatter": "detailed",
+            "filename": "./logs/shaffer.log",
+            "when": "midnight",
+            "interval": 1,
+            "backupCount": 30,
+            "delay": true
+        },
+        "sapphire_handler": {
+            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+            "formatter": "detailed",
+            "filename": "./logs/sapphire.log",
+            "when": "midnight",
+            "interval": 1,
+            "backupCount": 30,
+            "delay": true
         }
     },
     "loggers": {
@@ -84,6 +102,14 @@
         },
         "sheepofficial": {
             "handlers": ["sheepOfficial_handler"],
+            "level": "INFO"            
+        },
+        "shaffer": {
+            "handlers": ["shaffer_handler"],
+            "level": "INFO"            
+        },
+        "sapphire": {
+            "handlers": ["sapphire_handler"],
             "level": "INFO"            
         }
     }

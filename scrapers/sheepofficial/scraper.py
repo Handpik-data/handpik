@@ -27,117 +27,200 @@ class SheepOfficialScraper(BaseScraper):
         with open(filename, 'r') as file:
             return list(set(line.strip() for line in file if line.strip()))
         
-    async def scrape_pdp(self, product_link):
+
+    def format_price(self, raw_price: str) -> str:
+        cleaned = raw_price.strip()
+
+        cleaned = cleaned.replace("Rs.", "")
+        cleaned = cleaned.replace(",", "")
+        cleaned = cleaned.strip()
+
+        return cleaned
+        
+    async def scrape_pdp(self, product_link: str) -> dict:
+        product_data = {
+            "product_title": None,
+            "product_price": None,
+            "product_sale_price": None,
+            "product_description": None,
+            "product_images": None,
+            "product_sku": None,
+            "product_brand": None,
+            "product_category": None,
+            "product_tags": None,
+            "product_availability": None,
+            "product_rating": None,
+            "product_reviews_count": None,
+            "product_link": product_link,
+            "product_currency": None,
+        }
+
         session = requests.Session()
         retries = Retry(
-        total=3,
-        backoff_factor=0.5,
-        status_forcelist=[509, 510, 511, 512],
-        allowed_methods=frozenset(['GET', 'POST'])
+            total=3,
+            backoff_factor=0.5,
+            status_forcelist=[509, 510, 511, 512],
+            allowed_methods=frozenset(['GET', 'POST'])
         )
         session.mount('https://', HTTPAdapter(max_retries=retries))
 
-        response = session.get(
-            product_link,
-            verify=False, 
-            headers={
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-                            '(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            },
-            timeout=15
-        )
-        soup = BeautifulSoup(response.text, 'html.parser')
+        try:
+            resp = session.get(
+                product_link,
+                verify=False,  
+                headers={
+                    'User-Agent': (
+                        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                        'AppleWebKit/537.36 (KHTML, like Gecko) '
+                        'Chrome/91.0.4472.124 Safari/537.36'
+                    )
+                },
+                timeout=15
+            )
+            resp.raise_for_status()
+        except requests.RequestException as e:
+            self.log_error(f"Error fetching {product_link}: {e}")
+            return product_data  
 
-        product_data = {
-            'url': product_link,
-            'title': None,
-            'description': None,
-            'sku': None,
-            'category': None,
-            'brand': None,
-            'compare_price': None,
-            'sale_price': None,
-            'currency': None,
-            'images': [],
-            'availability': None,
-        }
+        soup = BeautifulSoup(resp.text, "html.parser")
 
+        try:
+            
+            title_tag = soup.find("title")
+            if title_tag:
+                product_data["product_title"] = title_tag.get_text(strip=True)
 
-        ld_json_scripts = soup.find_all('script', type='application/ld+json')
-        for tag in ld_json_scripts:
-            try:
-                data = json.loads(tag.string)
-                if isinstance(data, list):
-                    for block in data:
-                        if isinstance(block, dict) and block.get('@type') == 'Product':
-                            product_data = await self.parse_ldjson_product(block, product_data)
-                elif isinstance(data, dict) and data.get('@type') == 'Product':
-                    product_data = await self.parse_ldjson_product(data, product_data)
-            except (json.JSONDecodeError, TypeError):
-                continue
+         
+            price_wrap = soup.select_one(".t4s-product-price")
+            if price_wrap:
+                del_tag = price_wrap.select_one("del .money")
+                if del_tag:
+                    product_data["product_price"] = self.format_price(del_tag.get_text(strip=True))
+                ins_tag = price_wrap.select_one("ins .money")
+                if ins_tag:
+                    product_data["product_sale_price"] = self.format_price(ins_tag.get_text(strip=True))
+                else:
+                
+                    if not del_tag:
+                        money_tag = price_wrap.select_one(".money")
+                        if money_tag:
+                            product_data["product_price"] = money_tag.get_text(strip=True)
+                            product_data["product_sale_price"] = None
 
-        title_el = soup.select_one('.t4s-product__title')
-        if title_el and title_el.get_text(strip=True):
-            product_data['title'] = title_el.get_text(strip=True)
+            desc_wrap = soup.select_one(".t4s-product__description .t4s-rte")
+            if desc_wrap:
+                product_data["product_description"] = desc_wrap.get_text(" ", strip=True)
 
-        desc_el = soup.select_one('.t4s-product__description .t4s-rte')
-        if desc_el:
-            product_data['description'] = desc_el.get_text('\n', strip=True)
+            img_tags = soup.select('.t4s-product__media-item img')
+            if img_tags:
+                product_data["product_images"] = []
+                for tag in img_tags:
+             
+                    src_master = tag.get("data-master")
+                    if src_master and src_master.strip():
+                        product_data["product_images"].append("https:" + src_master.strip())
+                    else:
+                        src_url = tag.get("src") or ""
+                        if src_url.strip():
+                            product_data["product_images"].append("https:" + src_url.strip())
 
-        sku_el = soup.select_one('[data-product__sku-number]')
-        if sku_el:
-            product_data['sku'] = sku_el.get_text(strip=True)
+                product_data["product_images"] = list(dict.fromkeys(product_data["product_images"]))
 
-        del_el = soup.select_one('.t4s-product__price-review del .money')
-        if del_el:
-            del_text = del_el.get_text(strip=True).replace('Rs.', '').replace(',', '')
-            product_data['compare_price'] = del_text if del_text else None
+          
+            sku_tag = soup.select_one('[data-product__sku-number]')
+            if sku_tag:
+                sku_value = sku_tag.get_text(strip=True)
+                if sku_value:
+                    product_data["product_sku"] = sku_value
 
-        ins_el = soup.select_one('.t4s-product__price-review ins .money')
-        if ins_el:
-            ins_text = ins_el.get_text(strip=True).replace('Rs.', '').replace(',', '')
-            product_data['sale_price'] = ins_text if ins_text else None
+           
+            ld_json_scripts = soup.find_all("script", {"type": "application/ld+json"})
+            for script_tag in ld_json_scripts:
+                try:
+                    data_json = json.loads(script_tag.string or "")
+                   
+                    if isinstance(data_json, dict):
+                        brand_info = data_json.get("brand") or {}
+                        if isinstance(brand_info, dict):
+                            brand_name = brand_info.get("name")
+                            if brand_name:
+                                product_data["product_brand"] = brand_name
+                      
+                        if data_json.get("category"):
+                            product_data["product_category"] = data_json["category"]
+                    elif isinstance(data_json, list):
+                        for item in data_json:
+                            if isinstance(item, dict):
+                                if item.get("brand"):
+                                    brand_info = item["brand"]
+                                    if isinstance(brand_info, dict):
+                                        brand_name = brand_info.get("name")
+                                        if brand_name:
+                                            product_data["product_brand"] = brand_name
+                                if item.get("category"):
+                                    product_data["product_category"] = item["category"]
+                except json.JSONDecodeError:
+                    pass
 
-        product_data['images'] = list(dict.fromkeys(product_data['images']))
+            
+            tags_holder = soup.select(".product-tags a") or soup.select(".tags a")
+            if tags_holder:
+                product_data["product_tags"] = [t.get_text(strip=True) for t in tags_holder]
 
-        return product_data
-    
+            for script_tag in ld_json_scripts:
+                try:
+                    data_json = json.loads(script_tag.string or "")
+                    if isinstance(data_json, dict) and data_json.get("@type") == "ProductGroup" and "hasVariant" in data_json:
+                      
+                        variants = data_json["hasVariant"]
+                        for variant in variants:
+                            offers = variant.get("offers", {})
+                            if isinstance(offers, dict):
+                                if "availability" in offers:
+                                    if "InStock" in offers["availability"]:
+                                        product_data["product_availability"] = "In Stock"
+                                        break
+                except json.JSONDecodeError:
+                    pass
+            if not product_data["product_availability"]:
+            
+                if "Sold out" in soup.get_text():
+                    product_data["product_availability"] = "Out of Stock"
+                else:
+                    product_data["product_availability"] = "In Stock"
 
-    async def parse_ldjson_product(self, ldjson_obj, product_data):
-  
-        if ldjson_obj.get('name'):
-            product_data['title'] = ldjson_obj['name'].strip()
+       
+            rating_tag = soup.select_one(".r--stars-icon, .jdgm-stars")
+            if rating_tag and rating_tag.get("data-average-rating"):
+                product_data["product_rating"] = rating_tag["data-average-rating"]
 
-        if ldjson_obj.get('description'):
-            product_data['description'] = ldjson_obj['description'].strip()
+            reviews_count_tag = soup.select_one(".reviews-count, .jdgm-rating-summary__count")
+            if reviews_count_tag:
+                product_data["product_reviews_count"] = reviews_count_tag.get_text(strip=True)
 
-        if ldjson_obj.get('sku'):
-            product_data['sku'] = ldjson_obj['sku'].strip()
-
-        if ldjson_obj.get('category'):
-            product_data['category'] = ldjson_obj['category'].strip()
-
-        brand_obj = ldjson_obj.get('brand', {})
-        if isinstance(brand_obj, dict) and brand_obj.get('name'):
-            product_data['brand'] = brand_obj['name'].strip()
-
-        if ldjson_obj.get('image'):
-            if isinstance(ldjson_obj['image'], list):
-                for img_src in ldjson_obj['image']:
-                    product_data['images'].append(img_src.strip())
+           
+            currency_meta = soup.find("meta", {"itemprop": "priceCurrency"})
+            if currency_meta and currency_meta.get("content"):
+                product_data["product_currency"] = currency_meta["content"].strip()
             else:
-                product_data['images'].append(ldjson_obj['image'].strip())
+                for script_tag in ld_json_scripts:
+                    try:
+                        data_json = json.loads(script_tag.string or "")
+                        if isinstance(data_json, dict):
+                            if data_json.get("@type") == "ProductGroup" and data_json.get("hasVariant"):
+                                for variant in data_json["hasVariant"]:
+                                    offers = variant.get("offers", {})
+                                    if offers and offers.get("priceCurrency"):
+                                        product_data["product_currency"] = offers["priceCurrency"]
+                                        break
+                    except json.JSONDecodeError:
+                        pass
 
-        offers_obj = ldjson_obj.get('offers', {})
-        if isinstance(offers_obj, dict):
-            if offers_obj.get('price'):
-                product_data['sale_price'] = offers_obj['price']
-            if offers_obj.get('priceCurrency'):
-                product_data['currency'] = offers_obj['priceCurrency']
-            if offers_obj.get('availability'):
-                product_data['availability'] = offers_obj['availability'].split('/')[-1]
+        except Exception as e:
+            self.log_error(f"Error scraping {product_link}: {e}")
 
         return product_data
+
     
     async def scrape_products_links(self, url):
         all_product_links = []
@@ -150,6 +233,7 @@ class SheepOfficialScraper(BaseScraper):
                 response.raise_for_status()
                 
                 soup = BeautifulSoup(response.text, 'html.parser')   
+
 
                 main_div = soup.find('div', class_='t4s-product-wrapper')
 
@@ -178,7 +262,7 @@ class SheepOfficialScraper(BaseScraper):
 
     async def scrape_category(self, url):
         all_products = []
-        all_products_links = await self.scrape_products_links(url)
+        all_products_links = await self.scrape_products_links(url) 
         for product_link in all_products_links:
             pdp_data = await self.scrape_pdp(product_link)
             all_products.append(pdp_data)
