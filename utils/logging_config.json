@@ -77,6 +77,33 @@
             "interval": 1,
             "backupCount": 30,
             "delay": true
+        },
+        "saya_handler": {
+            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+            "formatter": "detailed",
+            "filename": "./logs/saya.log",
+            "when": "midnight",
+            "interval": 1,
+            "backupCount": 30,
+            "delay": true
+        },
+        "sanasafinaz_handler": {
+            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+            "formatter": "detailed",
+            "filename": "./logs/sanasafinaz.log",
+            "when": "midnight",
+            "interval": 1,
+            "backupCount": 30,
+            "delay": true
+        },
+        "saeedghani_handler": {
+            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+            "formatter": "detailed",
+            "filename": "./logs/saeedghani.log",
+            "when": "midnight",
+            "interval": 1,
+            "backupCount": 30,
+            "delay": true
         }
     },
     "loggers": {
@@ -110,6 +137,18 @@
         },
         "sapphire": {
             "handlers": ["sapphire_handler"],
+            "level": "INFO"            
+        },
+        "saya": {
+            "handlers": ["saya_handler"],
+            "level": "INFO"            
+        },
+        "sanasafinaz": {
+            "handlers": ["sanasafinaz_handler"],
+            "level": "INFO"            
+        },
+        "saeedghani": {
+            "handlers": ["saeedghani_handler"],
             "level": "INFO"            
         }
     }

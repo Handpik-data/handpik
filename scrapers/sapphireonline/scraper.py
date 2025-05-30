@@ -16,6 +16,7 @@ class SapphireScraper(BaseScraper):
             logger_name=SAPPHIRE_LOGGER
         )
         self.module_dir = os.path.dirname(os.path.abspath(__file__))
+        self.all_product_links_ = []
 
     async def get_unique_urls_from_file(self, filename):
         if not isinstance(filename, str) or not filename.strip():
@@ -29,11 +30,16 @@ class SapphireScraper(BaseScraper):
         
     async def scrape_pdp(self, product_link):
 
+        if product_link in self.all_product_links_:
+            return None
+        
+        self.all_product_links_.append(product_link)
+
         session = requests.Session()
         retries = Retry(
-        total=3,
+        total=5,
         backoff_factor=0.5,
-        status_forcelist=[509, 510, 511, 512],
+        status_forcelist=[509, 510, 511, 512, 513, 514, 515, 516, 517, 518],
         allowed_methods=frozenset(['GET', 'POST'])
         )
         session.mount('https://', HTTPAdapter(max_retries=retries))
@@ -48,7 +54,7 @@ class SapphireScraper(BaseScraper):
                         'Chrome/91.0.4472.124 Safari/537.36'
                     )
                 },
-                timeout=15
+                timeout=30
             )
             response.raise_for_status()
         except Exception as e:
@@ -220,9 +226,9 @@ class SapphireScraper(BaseScraper):
                 self.log_info(f"Scraping page {page_number}: {current_url}")
                 session = requests.Session()
                 retries = Retry(
-                    total=3,
+                    total=5,
                     backoff_factor=0.5,
-                    status_forcelist=[509, 510, 511, 512],
+                    status_forcelist=[520, 521, 522, 523, 524, 525, 526, 527, 528],
                     allowed_methods=frozenset(['GET', 'POST'])
                 )
                 session.mount('https://', HTTPAdapter(max_retries=retries))
@@ -237,7 +243,7 @@ class SapphireScraper(BaseScraper):
                             "Chrome/91.0.4472.124 Safari/537.36"
                         )
                     },
-                    timeout=15
+                    timeout=30
                 )
                 soup = BeautifulSoup(response.text, "html.parser")
                 main_div = soup.find("div", class_="product-grid")
@@ -284,7 +290,8 @@ class SapphireScraper(BaseScraper):
         all_products_links = await self.scrape_products_links(url)
         for product_link in all_products_links:
             pdp_data = await self.scrape_pdp(product_link)
-            all_products.append(pdp_data)
+            if pdp_data is not None:
+                all_products.append(pdp_data)
         
         return all_products
     
