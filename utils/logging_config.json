@@ -104,6 +104,33 @@
             "interval": 1,
             "backupCount": 30,
             "delay": true
+        },
+        "cambridgeshop_handler": {
+            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+            "formatter": "detailed",
+            "filename": "./logs/cambridgeshop.log",
+            "when": "midnight",
+            "interval": 1,
+            "backupCount": 30,
+            "delay": true
+        },
+        "outfitters_handler": {
+            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+            "formatter": "detailed",
+            "filename": "./logs/outfitters.log",
+            "when": "midnight",
+            "interval": 1,
+            "backupCount": 30,
+            "delay": true
+        },
+        "nishatlinen_handler": {
+            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+            "formatter": "detailed",
+            "filename": "./logs/nishatlinen.log",
+            "when": "midnight",
+            "interval": 1,
+            "backupCount": 30,
+            "delay": true
         }
     },
     "loggers": {
@@ -149,6 +176,18 @@
         },
         "saeedghani": {
             "handlers": ["saeedghani_handler"],
+            "level": "INFO"            
+        },
+        "cambridgeshop": {
+            "handlers": ["cambridgeshop_handler"],
+            "level": "INFO"            
+        },
+        "outfitters": {
+            "handlers": ["outfitters_handler"],
+            "level": "INFO"            
+        },
+        "nishatlinen": {
+            "handlers": ["nishatlinen_handler"],
             "level": "INFO"            
         }
     }

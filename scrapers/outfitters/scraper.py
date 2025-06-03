@@ -5,15 +5,15 @@ import re
 from bs4 import BeautifulSoup
 from interfaces.base_scraper import BaseScraper
 from datetime import datetime
-from utils.LoggerConstants import CAMBRIDGESHOP_LOGGER
+from utils.LoggerConstants import OUTFITTERS_LOGGER
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
-class CambridgeShopScraper(BaseScraper):
+class OutfittersScraper(BaseScraper):
     def __init__(self):
         super().__init__(
-            base_url="https://thecambridgeshop.com",
-            logger_name=CAMBRIDGESHOP_LOGGER
+            base_url="https://outfitters.com.pk",
+            logger_name=OUTFITTERS_LOGGER
         )
         self.module_dir = os.path.dirname(os.path.abspath(__file__))
         self.session = requests.Session()
@@ -203,13 +203,13 @@ class CambridgeShopScraper(BaseScraper):
                 
             if final_data:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-                output_file = f"CambridgeShopProducts_{timestamp}.json"
+                output_file = f"OutfittersProducts_{timestamp}.json"
                 output_path = os.path.join(self.module_dir, output_file)
                 with open(output_path, "w", encoding="utf-8") as f:
                     json.dump(final_data, f, indent=4, ensure_ascii=False)
                 
                 self.log_info(f"Total {len(category_urls)} categories")
-                self.log_info(f"Saved {len(final_data)} products into CambridgeShopProducts.json")
+                self.log_info(f"Saved {len(final_data)} products into OutfittersProducts.json")
                 self.log_info(f"Product Sample Data: {json.dumps(final_data[0], separators=(',', ':'))}")
 
             else:
