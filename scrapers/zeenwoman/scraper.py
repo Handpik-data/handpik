@@ -11,12 +11,14 @@ from datetime import datetime
 from utils.LoggerConstants import ZEENWOMAN_LOGGER
 
 class ZeeWomanScraper(BaseScraper):
-    def __init__(self):
+    def __init__(self, proxies=None):
         super().__init__(
             base_url="https://zeenwoman.com",
-            logger_name=ZEENWOMAN_LOGGER
+            logger_name=ZEENWOMAN_LOGGER,
+            proxies=proxies
         )
         self.module_dir = os.path.dirname(os.path.abspath(__file__))
+        self.store_name = "zeenwoman"
 
     async def get_unique_urls_from_file(self, filename):
         if not isinstance(filename, str) or not filename.strip():
@@ -34,16 +36,22 @@ class ZeeWomanScraper(BaseScraper):
 
         soup = BeautifulSoup(response.text, 'html.parser')
 
-
         product_data = {
-            'product_title': None,
+            'store_name': self.store_name,
+            'title': None,
+            'sku': None,
+            'description': None,
+            'currency': None,
             'original_price': None,
             'sale_price': None,
-            'save_percent': None,
             'images': [],
+            'brand': None,
+            'availability': None,
+            'category': None,
+            'product_url': product_link,
+            'variants': [],
             'attributes': {},
-            'product_link': product_link,
-            'variants': []
+            'raw_data': {},
         }
 
         product_container = soup.find('div', {'class': 't4s-product__info-container'})
@@ -52,7 +60,7 @@ class ZeeWomanScraper(BaseScraper):
 
         product_title_element = soup.find('h1', {'class': 't4s-product__title'})
         if product_title_element:
-            product_data['product_title'] = product_title_element.text.strip()
+            product_data['title'] = product_title_element.text.strip()
 
         product_price_info = soup.find('div', {'class': 't4s-product__price-review'})
         if product_price_info:
@@ -62,7 +70,7 @@ class ZeeWomanScraper(BaseScraper):
                 ins_price = price_container.find('ins')
                 single_price = price_container.find('span', {'class': 'money'})
 
-                original_price = sale_price = save_percent = None
+                original_price = sale_price = None
 
                 if del_price and ins_price:
                     original_price = del_price.get_text(strip=True)
@@ -70,18 +78,8 @@ class ZeeWomanScraper(BaseScraper):
                 elif single_price:
                     original_price = single_price.get_text(strip=True)
 
-                badge = price_container.find('span', {'class': 't4s-badge-price'})
-                if badge:
-                    badge_text = badge.get_text(strip=True)
-                    match = re.search(r"SAVE\s+(\d+)%", badge_text, re.IGNORECASE)
-                    if match:
-                        save_percent = match.group(1)
-                    else:
-                        save_percent = badge_text
-
                 product_data['original_price'] = original_price
                 product_data['sale_price'] = sale_price
-                product_data['save_percent'] = save_percent
 
         
         swatch_options = soup.find_all('div', {'class': 't4s-swatch__option'})
@@ -248,13 +246,17 @@ class ZeeWomanScraper(BaseScraper):
                 
             if final_data:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-                output_file = f"ZeenWomanProducts_{timestamp}.json"
+                output_file = f"{self.store_name}_{timestamp}.json"
                 output_path = os.path.join(self.module_dir, output_file)
                 with open(output_path, "w", encoding="utf-8") as f:
                     json.dump(final_data, f, indent=4, ensure_ascii=False)
-                self.log_info(f"Saved {len(final_data)} products into ZeenWomanProducts.json")
+                
+                self.log_info(f"Total {len(category_urls)} categories")
+                self.log_info(f"Saved {len(final_data)} products into {self.store_name}_{timestamp}.json")
+                self.log_info(f"Product Sample Data: {json.dumps(final_data[0], separators=(',', ':'))}")
+
             else:
                 self.log_error("No data scraped")
                         
         except Exception as e:
-            self.log_error(f"Error: {e}")    
+            self.log_error(f"Error: {e}")   

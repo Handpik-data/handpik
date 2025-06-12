@@ -11,6 +11,7 @@ from scrapers.sapphireonline.scraper import SapphireScraper
 from scrapers.saya.scraper import SayaScraper
 from scrapers.sanasafinaz.scraper import SanaSafinazScraper
 from scrapers.saeedghani.scraper import SaeedGhaniScraper
+from scrapers.cambridgeshop.scraper import CambridgeShopScraper
 
 def setup_logging():
     with open("utils/logging_config.json") as f:
@@ -19,7 +20,7 @@ def setup_logging():
 
 async def main():
     setup_logging()
-    scraper = SaeedGhaniScraper()
+    scraper = CambridgeShopScraper()
     await scraper.scrape_data()
 
 if __name__ == "__main__":

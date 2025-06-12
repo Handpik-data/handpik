@@ -10,20 +10,14 @@ from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
 class CambridgeShopScraper(BaseScraper):
-    def __init__(self):
+    def __init__(self, proxies=None):
         super().__init__(
             base_url="https://thecambridgeshop.com",
-            logger_name=CAMBRIDGESHOP_LOGGER
+            logger_name=CAMBRIDGESHOP_LOGGER,
+            proxies=proxies
         )
         self.module_dir = os.path.dirname(os.path.abspath(__file__))
-        self.session = requests.Session()
-        retries = Retry(
-            total=3,
-            backoff_factor=0.5,
-            status_forcelist=[509, 510, 511, 512],
-            allowed_methods=frozenset(['GET', 'POST'])
-        )
-        self.session.mount('https://', HTTPAdapter(max_retries=retries))
+        self.store_name = "cambridgeshop"
         self.all_product_links_ = []
 
     async def get_unique_urls_from_file(self, filename):
@@ -52,17 +46,12 @@ class CambridgeShopScraper(BaseScraper):
         }
 
         try:
-            response = self.session.get(
+            response = self.make_request(
                 product_link,
                 verify=False,
-                headers={
-                    "User-Agent":
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/91.0.4472.124 Safari/537.36"
-                },
-                timeout=15
+                headers=self.headers
             )
+            
             soup = BeautifulSoup(response.text, "html.parser")
             product_info_main = soup.find('div', class_="t4s-product__info-wrapper")
             if product_info_main:
@@ -153,8 +142,12 @@ class CambridgeShopScraper(BaseScraper):
         while True:
             try:
                 self.log_info(f"Scraping page {page_number}: {current_url}")
-                response = requests.get(current_url, headers=self.headers, timeout=10)
-                response.raise_for_status()
+
+                response = self.make_request(
+                    current_url,
+                    verify=False,
+                    headers=self.headers
+                )
                 
                 soup = BeautifulSoup(response.text, 'html.parser')
                 
@@ -203,13 +196,13 @@ class CambridgeShopScraper(BaseScraper):
                 
             if final_data:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-                output_file = f"CambridgeShopProducts_{timestamp}.json"
+                output_file = f"{self.store_name}_{timestamp}.json"
                 output_path = os.path.join(self.module_dir, output_file)
                 with open(output_path, "w", encoding="utf-8") as f:
                     json.dump(final_data, f, indent=4, ensure_ascii=False)
                 
                 self.log_info(f"Total {len(category_urls)} categories")
-                self.log_info(f"Saved {len(final_data)} products into CambridgeShopProducts.json")
+                self.log_info(f"Saved {len(final_data)} products into {self.store_name}_{timestamp}.json")
                 self.log_info(f"Product Sample Data: {json.dumps(final_data[0], separators=(',', ':'))}")
 
             else:
