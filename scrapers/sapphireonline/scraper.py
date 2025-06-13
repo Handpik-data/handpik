@@ -148,14 +148,24 @@ class SapphireScraper(BaseScraper):
         try:
             size_items = soup.find_all("div", class_="size-item")
             all_sizes = []
+
             for si in size_items:
                 size_span = si.find("span")
-                if size_span:
+                input_tag = si.find("input")
+
+                if size_span and input_tag:
                     size_text = size_span.get_text(strip=True)
+                    input_classes = input_tag.get("class", [])
+
+                    availability = "not-available" not in input_classes
+
                     if size_text:
-                        all_sizes.append(size_text)
-                        
-            product_data["variants"] = [{'size': size} for size in list(dict.fromkeys(all_sizes))  ] 
+                        all_sizes.append({
+                            "size": size_text,
+                            "availability": availability
+                        })
+
+            product_data["variants"] = all_sizes
         except Exception as e:
             self.log_debug(f"Exception occured while parsing variants : {e}")
 
