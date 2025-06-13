@@ -8,12 +8,16 @@ from datetime import datetime
 from utils.LoggerConstants import WOVWORLD_LOGGER
 
 class WovWorldScraper(BaseScraper):
-    def __init__(self):
+    def __init__(self, proxies=None, request_delay=0.1):
         super().__init__(
             base_url="https://wovworld.com",
-            logger_name=WOVWORLD_LOGGER
+            logger_name=WOVWORLD_LOGGER,
+            proxies=proxies,
+            request_delay=request_delay
         )
         self.module_dir = os.path.dirname(os.path.abspath(__file__))
+        self.store_name = "wovworld"
+        self.all_product_links_ = []
 
     async def get_unique_urls_from_file(self, filename):
         if not isinstance(filename, str) or not filename.strip():
@@ -26,78 +30,98 @@ class WovWorldScraper(BaseScraper):
             return list(set(line.strip() for line in file if line.strip()))
         
     async def scrape_pdp(self, product_link):
-        response = requests.get(product_link)
-        response.raise_for_status()
 
-        soup = BeautifulSoup(response.text, 'html.parser')
+        if product_link in self.all_product_links_:
+            return None
+        
+        self.all_product_links_.append(product_link)
         product_data = {
-            'product_title': None,
+            'store_name': self.store_name,
+            'title': None,
+            'sku': None,
             'description': None,
-            'price': None,
-            'product_link': product_link,
-            'size': [],
-            'images': []
+            'currency': None,
+            'original_price': None,
+            'sale_price': None,
+            'images': [],
+            'brand': None,
+            'availability': None,
+            'category': None,
+            'product_url': product_link,
+            'variants': [],
+            'attributes': {},
+            'raw_data': {},
         }
+        try:
+            response = self.make_request(
+                product_link,
+                verify=False,
+                headers=self.headers
+            )
 
-        product_container = soup.find('div', {'class': 'page-content page-content--product'})
-        if not product_container:
-            return {'error': 'Product container not found'}
+            soup = BeautifulSoup(response.text, 'html.parser')
 
-        product_title_element = product_container.find('h1', {'class': 'product-single__title'})
-        if product_title_element:
-            product_data['product_title'] = product_title_element.text.strip()
+            product_container = soup.find('div', {'class': 'page-content page-content--product'})
+            if not product_container:
+                return product_data
 
-        
-        description_div = product_container.find('div', class_='product-single__description rte')
+            product_title_element = product_container.find('h1', {'class': 'product-single__title'})
+            if product_title_element:
+                product_data['title'] = product_title_element.text.strip()
 
-        if description_div:
-            description_text = description_div.get_text(strip=True)
-            product_data['description'] = description_text
+            
+            description_div = product_container.find('div', class_='product-single__description rte')
 
-        price_span_container = product_container.find('span', {'class': 'product__price'})
-        if price_span_container:
-            price_span = price_span_container.find('span', {'class': 'money'})
-            if price_span:
-                raw_price_text = price_span.get_text(strip=True)
-                numeric_text = re.sub(r'[^0-9.]', '', raw_price_text)
-                product_data['price'] = numeric_text[1:] if numeric_text else None
+            if description_div:
+                description_text = description_div.get_text(strip=True)
+                product_data['description'] = description_text
+
+            price_span_container = product_container.find('span', {'class': 'product__price'})
+            if price_span_container:
+                price_span = price_span_container.find('span', {'class': 'money'})
+                if price_span:
+                    raw_price_text = price_span.get_text(strip=True)
+                    numeric_text = re.sub(r'[^0-9.]', '', raw_price_text)
+                    product_data['original_price'] = numeric_text[1:] if numeric_text else None
 
 
-        size_wrapper = product_container.find('div', class_='variant-wrapper variant-wrapper--button js')
-        if size_wrapper:
-            size_label = size_wrapper.find('label', class_='variant__label', string=lambda x: x and 'Size' in x)
-            if size_label:
-                fieldset = size_wrapper.find('fieldset', {'name': 'Size'})
-                if fieldset:
-                    variant_divs = fieldset.find_all('div', class_='variant-input')
-                    for variant_div in variant_divs:
-                        size_input = variant_div.find('input', {'type': 'radio'})
-                        size_label_tag = variant_div.find('label', class_='variant__button-label')
-                        
-                        if size_input and size_label_tag:
-                            size_name = size_input.get('value', '').strip()
-                           
-                            classes_input = size_input.get('class', [])
-                            classes_label = size_label_tag.get('class', [])
-
-                            if 'disabled' in classes_input or 'disabled' in classes_label:
-                                availability = False
-                            else:
-                                availability = True
+            size_wrapper = product_container.find('div', class_='variant-wrapper variant-wrapper--button js')
+            if size_wrapper:
+                size_label = size_wrapper.find('label', class_='variant__label', string=lambda x: x and 'Size' in x)
+                if size_label:
+                    fieldset = size_wrapper.find('fieldset', {'name': 'Size'})
+                    if fieldset:
+                        variant_divs = fieldset.find_all('div', class_='variant-input')
+                        for variant_div in variant_divs:
+                            size_input = variant_div.find('input', {'type': 'radio'})
+                            size_label_tag = variant_div.find('label', class_='variant__button-label')
                             
-                            product_data['size'].append({
-                                'size_name': size_name,
-                                'availability': availability
-                            })
-        
-        images_container = soup.find('div', attrs={'data-product-images': True})
-        if images_container:
-            img_tags = images_container.find_all('img', class_='photoswipe__image')
-            for img_tag in img_tags:
-                photo_url = img_tag.get('data-photoswipe-src')
-                if photo_url:
-                    photo_url = f"https:{photo_url}" if photo_url.startswith('//') else photo_url
-                    product_data['images'].append(photo_url)
+                            if size_input and size_label_tag:
+                                size_name = size_input.get('value', '').strip()
+                            
+                                classes_input = size_input.get('class', [])
+                                classes_label = size_label_tag.get('class', [])
+
+                                if 'disabled' in classes_input or 'disabled' in classes_label:
+                                    availability = False
+                                else:
+                                    availability = True
+                                
+                                product_data['variants'].append({
+                                    'size': size_name,
+                                    'availability': availability
+                                })
+            
+            images_container = soup.find('div', attrs={'data-product-images': True})
+            if images_container:
+                img_tags = images_container.find_all('img', class_='photoswipe__image')
+                for img_tag in img_tags:
+                    photo_url = img_tag.get('data-photoswipe-src')
+                    if photo_url:
+                        photo_url = f"https:{photo_url}" if photo_url.startswith('//') else photo_url
+                        product_data['images'].append(photo_url)
+        except Exception as e:
+            self.log_error(f"Error scraping product data from {product_link}: {e}")   
         return product_data
 
     async def scrape_products_links(self, url):
@@ -107,8 +131,11 @@ class WovWorldScraper(BaseScraper):
         while True:
             try:
                 self.log_info(f"Scraping page {page_number}: {current_url}")
-                response = requests.get(current_url, headers=self.headers, timeout=10)
-                response.raise_for_status()
+                response = self.make_request(
+                    current_url,
+                    verify=False,
+                    headers=self.headers
+                )
                 
                 soup = BeautifulSoup(response.text, 'html.parser')                
                 product_divs = soup.find_all('div', class_='grid-product__content') 
@@ -139,7 +166,8 @@ class WovWorldScraper(BaseScraper):
         all_products_links = await self.scrape_products_links(url)
         for product_link in all_products_links:
             pdp_data = await self.scrape_pdp(product_link)
-            all_products.append(pdp_data)
+            if pdp_data is not None:
+                all_products.append(pdp_data)
         
         return all_products
     
@@ -153,13 +181,17 @@ class WovWorldScraper(BaseScraper):
                 
             if final_data:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-                output_file = f"WovWorldProducts_{timestamp}.json"
+                output_file = f"{self.store_name}_{timestamp}.json"
                 output_path = os.path.join(self.module_dir, output_file)
                 with open(output_path, "w", encoding="utf-8") as f:
                     json.dump(final_data, f, indent=4, ensure_ascii=False)
-                self.log_info(f"Saved {len(final_data)} products into WovWorldProducts.json")
+                
+                self.log_info(f"Total {len(category_urls)} categories")
+                self.log_info(f"Saved {len(final_data)} products into {self.store_name}_{timestamp}.json")
+                self.log_info(f"Product Sample Data: {json.dumps(final_data[0], separators=(',', ':'))}")
+
             else:
                 self.log_error("No data scraped")
                         
         except Exception as e:
-            self.log_error(f"Error: {e}")    
+            self.log_error(f"Error: {e}")   

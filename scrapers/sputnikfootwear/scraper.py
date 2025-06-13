@@ -10,12 +10,16 @@ from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
 class SputnikFootWearScraper(BaseScraper):
-    def __init__(self):
+    def __init__(self, proxies=None, request_delay=0.1):
         super().__init__(
             base_url="https://sputnikfootwear.com",
-            logger_name=SPUTNIK_LOGGER
+            logger_name=SPUTNIK_LOGGER,
+            proxies=proxies,
+            request_delay=request_delay
         )
         self.module_dir = os.path.dirname(os.path.abspath(__file__))
+        self.store_name = "sputnikfootwear"
+        self.all_product_links_ = []
 
     async def get_unique_urls_from_file(self, filename):
         if not isinstance(filename, str) or not filename.strip():
@@ -28,87 +32,89 @@ class SputnikFootWearScraper(BaseScraper):
             return list(set(line.strip() for line in file if line.strip()))
         
     async def scrape_pdp(self, product_link):
-        session = requests.Session()
-        retries = Retry(
-            total=3,
-            backoff_factor=0.5,
-            status_forcelist=[505, 506, 507, 508],
-            allowed_methods=frozenset(['GET', 'POST'])
-        )
-        session.mount('https://', HTTPAdapter(max_retries=retries))
-
-        # Make request with SSL context modification
-        response = session.get(
-            product_link,
-            verify=False,  # Bypass SSL verification
-            headers={
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            },
-            timeout=15
-        )
-
-
-        soup = BeautifulSoup(response.text, 'html.parser')
-
+        if product_link in self.all_product_links_:
+            return None
+        
+        self.all_product_links_.append(product_link)
         product_data = {
+            'store_name': self.store_name,
             'title': None,
-            'brand': None,
-            'product_type': None,
-            'price': None,
+            'sku': None,
+            'description': None,
+            'currency': None,
             'original_price': None,
+            'sale_price': None,
             'images': [],
+            'brand': None,
+            'availability': None,
+            'category': None,
+            'product_url': product_link,
             'variants': [],
-            'url': product_link
+            'attributes': {},
+            'raw_data': {},
         }
-        product_json_script = soup.find('script', id=lambda x: x and x.startswith("ProductJson"))
-        if not product_json_script:
-            self.log_error("Error: Product JSON script not found.")
-            return product_data
-
         try:
-            product_json = json.loads(product_json_script.string.strip())
-        except:
-            self.log_error("Error: Could not parse product JSON.")
-            return product_data
+            response = self.make_request(
+                product_link,
+                verify=False,
+                headers=self.headers
+            )
 
-        product_data['title'] = product_json.get('title')
-        product_data['brand'] = product_json.get('vendor')
-        product_data['product_type'] = product_json.get('type')
+            soup = BeautifulSoup(response.text, 'html.parser')
 
-        product_data['price'] = None
-        product_data['original_price'] = None
+            product_json_script = soup.find('script', id=lambda x: x and x.startswith("ProductJson"))
+            if not product_json_script:
+                self.log_debug("Error: Product JSON script not found.")
+                return product_data
 
-        if 'price' in product_json:
-            product_data['price'] = product_json['price'] / 100 if product_json['price'] else None
+            try:
+                product_json = json.loads(product_json_script.string.strip())
+            except:
+                self.log_debug("Error: Could not parse product JSON.")
+                return product_data
 
-        if 'compare_at_price' in product_json and product_json['compare_at_price']:
-            product_data['original_price'] = product_json['compare_at_price'] / 100
+            product_data['title'] = product_json.get('title')
+            product_data['brand'] = product_json.get('vendor')
+            product_data['category'] = product_json.get('type')
 
-    
-        all_images = product_json.get('images', [])
-        product_data['images'] = [
-            img.replace('//', 'https://') for img in all_images
-        ]
-        variants_list = product_json.get('variants', [])
-        product_options = product_json.get('options', [])
-        for v in variants_list:
-            variant_info = {}
-            count = 1
-            for i in product_options:
-             variant_info[i] = v.get('option'+str(count))
-             count = count + 1
-            variant_info['available'] = v.get('available', False)
-            variant_info['price'] = v['price'] / 100.0 if v.get('price') else None
-            variant_info['original_price'] = (v['compare_at_price'] / 100.0 
-                                                if v.get('compare_at_price') else None)
-            
-            product_data['variants'].append(variant_info)
+
+            if 'price' in product_json:
+                product_data['sale_price'] = product_json['price'] / 100 if product_json['price'] else None
+
+            if 'compare_at_price' in product_json and product_json['compare_at_price']:
+                product_data['original_price'] = product_json['compare_at_price'] / 100
+
+        
+            all_images = product_json.get('images', [])
+            product_data['images'] = [
+                img.replace('//', 'https://') for img in all_images
+            ]
+            variants_list = product_json.get('variants', [])
+            product_options = product_json.get('options', [])
+            for v in variants_list:
+                variant_info = {}
+                count = 1
+                for i in product_options:
+                    variant_info[i] = v.get('option'+str(count))
+                    count = count + 1
+                    variant_info['availability'] = v.get('available', False)
+                    variant_info['price'] = v['price'] / 100.0 if v.get('price') else None
+                    variant_info['original_price'] = (v['compare_at_price'] / 100.0 
+                                                        if v.get('compare_at_price') else None)
+                    
+                    product_data['variants'].append(variant_info)
+
+        except Exception as e:
+            self.log_error(f"Error scraping product data from {product_link}: {e}")
 
         return product_data
     
     async def get_product_links(self, page_url):
-        response = requests.get(page_url)
-        response.raise_for_status()
+        response = self.make_request(
+                page_url,
+                verify=False,
+                headers=self.headers
+            )
 
         soup = BeautifulSoup(response.text, "html.parser")
 
@@ -149,7 +155,8 @@ class SputnikFootWearScraper(BaseScraper):
         all_products_links = await self.scrape_products_links(url)
         for product_link in all_products_links:
             pdp_data = await self.scrape_pdp(product_link)
-            all_products.append(pdp_data)
+            if pdp_data is not None:
+                all_products.append(pdp_data)
         
         return all_products
     
@@ -163,17 +170,17 @@ class SputnikFootWearScraper(BaseScraper):
                 
             if final_data:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-                output_file = f"sputnikProducts_{timestamp}.json"
+                output_file = f"{self.store_name}_{timestamp}.json"
                 output_path = os.path.join(self.module_dir, output_file)
                 with open(output_path, "w", encoding="utf-8") as f:
                     json.dump(final_data, f, indent=4, ensure_ascii=False)
                 
                 self.log_info(f"Total {len(category_urls)} categories")
-                self.log_info(f"Saved {len(final_data)} products into sputnikProducts.json")
+                self.log_info(f"Saved {len(final_data)} products into {self.store_name}_{timestamp}.json")
                 self.log_info(f"Product Sample Data: {json.dumps(final_data[0], separators=(',', ':'))}")
 
             else:
                 self.log_error("No data scraped")
                         
         except Exception as e:
-            self.log_error(f"Error: {e}")    
+            self.log_error(f"Error: {e}")   

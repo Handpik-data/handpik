@@ -8,7 +8,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
 class BaseScraper(ABC):
-    def __init__(self, base_url, logger_name, proxies=None, request_delay=3.5, max_retries=5):
+    def __init__(self, base_url, logger_name, proxies=None, request_delay=0.1, max_retries=5):
         self.base_url = base_url
         self.logger = logging.getLogger(logger_name)
         self.request_delay = request_delay
@@ -26,7 +26,7 @@ class BaseScraper(ABC):
     def _create_session(self):
         session = requests.Session()
         
-        retry_kwargs = Retry(
+        retry_strategy = Retry(
             total=self.max_retries,
             backoff_factor=0.8,
             status_forcelist=[
@@ -36,15 +36,6 @@ class BaseScraper(ABC):
             raise_on_status=False,
             respect_retry_after_header=True,
         )
-
-        try:
-            from urllib3.util import Retry
-            if hasattr(Retry, 'DEFAULT_RETRY_AFTER_STATUS_CODES'):
-                retry_kwargs['retry_on_timeout'] = True
-        except ImportError:
-            pass
-
-        retry_strategy = Retry(**retry_kwargs)
         
         adapter = HTTPAdapter(
             max_retries=retry_strategy,
@@ -117,4 +108,4 @@ class BaseScraper(ABC):
         self.logger.info(message)
 
     def log_debug(self, message):
-        self.logger.debug(message)
+        self.logger.debug(message, exc_info=True)

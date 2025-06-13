@@ -10,12 +10,16 @@ from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
 class SheepOfficialScraper(BaseScraper):
-    def __init__(self):
+    def __init__(self, proxies=None, request_delay=0.1):
         super().__init__(
             base_url="https://sheepofficial.com",
-            logger_name=SHEEPOFFICIAL_LOGGER
+            logger_name=SHEEPOFFICIAL_LOGGER,
+            proxies=proxies,
+            request_delay=request_delay
         )
         self.module_dir = os.path.dirname(os.path.abspath(__file__))
+        self.store_name = "sheepofficial"
+        self.all_product_links_ = []
 
     async def get_unique_urls_from_file(self, filename):
         if not isinstance(filename, str) or not filename.strip():
@@ -38,100 +42,118 @@ class SheepOfficialScraper(BaseScraper):
         return cleaned
         
     async def scrape_pdp(self, product_link: str) -> dict:
+        if product_link in self.all_product_links_:
+            return None
+        
+        self.all_product_links_.append(product_link)
         product_data = {
-            "product_title": None,
-            "product_price": None,
-            "product_sale_price": None,
-            "product_description": None,
-            "product_images": None,
-            "product_sku": None,
-            "product_brand": None,
-            "product_category": None,
-            "product_tags": None,
-            "product_availability": None,
-            "product_rating": None,
-            "product_reviews_count": None,
-            "product_link": product_link,
-            "product_currency": None,
+            'store_name': self.store_name,
+            'title': None,
+            'sku': None,
+            'description': None,
+            'currency': None,
+            'original_price': None,
+            'sale_price': None,
+            'images': [],
+            'brand': None,
+            'availability': None,
+            'category': None,
+            'product_url': product_link,
+            'variants': [],
+            'attributes': {},
+            'raw_data': {},
         }
 
-        session = requests.Session()
-        retries = Retry(
-            total=3,
-            backoff_factor=0.5,
-            status_forcelist=[509, 510, 511, 512],
-            allowed_methods=frozenset(['GET', 'POST'])
-        )
-        session.mount('https://', HTTPAdapter(max_retries=retries))
-
+        
         try:
-            resp = session.get(
+           response = self.make_request(
                 product_link,
-                verify=False,  
-                headers={
-                    'User-Agent': (
-                        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-                        'AppleWebKit/537.36 (KHTML, like Gecko) '
-                        'Chrome/91.0.4472.124 Safari/537.36'
-                    )
-                },
-                timeout=15
+                verify=False,
+                headers=self.headers
             )
-            resp.raise_for_status()
         except requests.RequestException as e:
-            self.log_error(f"Error fetching {product_link}: {e}")
+            self.log_debug(f"Error fetching {product_link}: {e}")
             return product_data  
 
-        soup = BeautifulSoup(resp.text, "html.parser")
+        soup = BeautifulSoup(response.text, "html.parser")
 
         try:
             
             title_tag = soup.find("title")
             if title_tag:
-                product_data["product_title"] = title_tag.get_text(strip=True)
+                product_data["title"] = title_tag.get_text(strip=True)
+            
+            variants_script = soup.find('script', class_='pr_variants_json')
+            if variants_script:
+                variants_data = json.loads(variants_script.string)
+            else:
+                variants_data = []
+
+            
+            options_script = soup.find('script', class_='pr_options_json')
+            if options_script:
+                options_data = json.loads(options_script.string)
+            else:
+                options_data = []
+
+            option_map = [{opt["position"]: opt["name"].lower()} for opt in options_data]
+
+
+
+            variants = []
+            for variant in variants_data:
+                variant_data = {}
+                for i in option_map:
+                    for key, value in i.items():
+                        variant_data[value] = variant.get('option' + str(key), '')
+
+                variant_data['availability'] = variant.get('available', False)
+                
+                variants.append(variant_data)
+
+            product_data['variants'] = variants
 
          
             price_wrap = soup.select_one(".t4s-product-price")
             if price_wrap:
                 del_tag = price_wrap.select_one("del .money")
                 if del_tag:
-                    product_data["product_price"] = self.format_price(del_tag.get_text(strip=True))
+                    product_data["original_price"] = self.format_price(del_tag.get_text(strip=True))
                 ins_tag = price_wrap.select_one("ins .money")
                 if ins_tag:
-                    product_data["product_sale_price"] = self.format_price(ins_tag.get_text(strip=True))
+                    product_data["sale_price"] = self.format_price(ins_tag.get_text(strip=True))
                 else:
                 
                     if not del_tag:
                         money_tag = price_wrap.select_one(".money")
                         if money_tag:
-                            product_data["product_price"] = money_tag.get_text(strip=True)
-                            product_data["product_sale_price"] = None
+                            product_data["original_price"] = money_tag.get_text(strip=True)
 
             desc_wrap = soup.select_one(".t4s-product__description .t4s-rte")
             if desc_wrap:
-                product_data["product_description"] = desc_wrap.get_text(" ", strip=True)
+                product_data["description"] = desc_wrap.get_text(" ", strip=True)
 
             img_tags = soup.select('.t4s-product__media-item img')
             if img_tags:
-                product_data["product_images"] = []
+                product_data["images"] = []
                 for tag in img_tags:
              
                     src_master = tag.get("data-master")
                     if src_master and src_master.strip():
-                        product_data["product_images"].append("https:" + src_master.strip())
+                        product_data["images"].append("https:" + src_master.strip())
                     else:
                         src_url = tag.get("src") or ""
                         if src_url.strip():
-                            product_data["product_images"].append("https:" + src_url.strip())
+                            product_data["images"].append("https:" + src_url.strip())
 
-                product_data["product_images"] = list(dict.fromkeys(product_data["product_images"]))
+                product_data["images"] = list(dict.fromkeys(product_data["images"]))
 
           
             sku_tag = soup.select_one('[data-product__sku-number]')
             if sku_tag:
                 sku_value = sku_tag.get_text(strip=True)
                 if sku_value:
-                    product_data["product_sku"] = sku_value
+                    product_data["sku"] = sku_value
 
            
             ld_json_scripts = soup.find_all("script", {"type": "application/ld+json"})
@@ -144,10 +166,10 @@ class SheepOfficialScraper(BaseScraper):
                         if isinstance(brand_info, dict):
                             brand_name = brand_info.get("name")
                             if brand_name:
-                                product_data["product_brand"] = brand_name
+                                product_data["brand"] = brand_name
                       
                         if data_json.get("category"):
-                            product_data["product_category"] = data_json["category"]
+                            product_data["category"] = data_json["category"]
                     elif isinstance(data_json, list):
                         for item in data_json:
                             if isinstance(item, dict):
@@ -155,53 +177,31 @@ class SheepOfficialScraper(BaseScraper):
                                     brand_info = item["brand"]
                                     if isinstance(brand_info, dict):
                                         brand_name = brand_info.get("name")
-                                        if brand_name:
-                                            product_data["product_brand"] = brand_name
-                                if item.get("category"):
-                                    product_data["product_category"] = item["category"]
-                except json.JSONDecodeError:
-                    pass
+                                        if brand_name and not product_data['brand'] and  product_data['brand'] == "":
+                                            product_data["brand"] = brand_name
+                                if item.get("category") and not product_data['category'] and  product_data['category'] == "":
+                                    product_data["category"] = item["category"]
+                except Exception as e:
+                    self.log_debug(f"Exception occured while scraping product's ld script : {e}")
 
             
             tags_holder = soup.select(".product-tags a") or soup.select(".tags a")
             if tags_holder:
-                product_data["product_tags"] = [t.get_text(strip=True) for t in tags_holder]
-
-            for script_tag in ld_json_scripts:
-                try:
-                    data_json = json.loads(script_tag.string or "")
-                    if isinstance(data_json, dict) and data_json.get("@type") == "ProductGroup" and "hasVariant" in data_json:
-                      
-                        variants = data_json["hasVariant"]
-                        for variant in variants:
-                            offers = variant.get("offers", {})
-                            if isinstance(offers, dict):
-                                if "availability" in offers:
-                                    if "InStock" in offers["availability"]:
-                                        product_data["product_availability"] = "In Stock"
-                                        break
-                except json.JSONDecodeError:
-                    pass
-            if not product_data["product_availability"]:
-            
-                if "Sold out" in soup.get_text():
-                    product_data["product_availability"] = "Out of Stock"
-                else:
-                    product_data["product_availability"] = "In Stock"
+                product_data['attributes']["product_tags"] = [t.get_text(strip=True) for t in tags_holder]
 
        
             rating_tag = soup.select_one(".r--stars-icon, .jdgm-stars")
             if rating_tag and rating_tag.get("data-average-rating"):
-                product_data["product_rating"] = rating_tag["data-average-rating"]
+                product_data['attributes']["product_rating"] = rating_tag["data-average-rating"]
 
             reviews_count_tag = soup.select_one(".reviews-count, .jdgm-rating-summary__count")
             if reviews_count_tag:
-                product_data["product_reviews_count"] = reviews_count_tag.get_text(strip=True)
+                product_data['attributes']["product_reviews_count"] = reviews_count_tag.get_text(strip=True)
 
            
             currency_meta = soup.find("meta", {"itemprop": "priceCurrency"})
             if currency_meta and currency_meta.get("content"):
-                product_data["product_currency"] = currency_meta["content"].strip()
+                product_data["currency"] = currency_meta["content"].strip()
             else:
                 for script_tag in ld_json_scripts:
                     try:
@@ -210,11 +210,11 @@ class SheepOfficialScraper(BaseScraper):
                             if data_json.get("@type") == "ProductGroup" and data_json.get("hasVariant"):
                                 for variant in data_json["hasVariant"]:
                                     offers = variant.get("offers", {})
-                                    if offers and offers.get("priceCurrency"):
-                                        product_data["product_currency"] = offers["priceCurrency"]
+                                    if offers and offers.get("priceCurrency") and not product_data['currency'] and product_data['currency'] == "":
+                                        product_data["currency"] = offers["priceCurrency"]
                                         break
-                    except json.JSONDecodeError:
-                        pass
+                    except Exception as e:
+                        self.log_debug(f"Exception occured while scraping product's currency : {e}")
 
         except Exception as e:
             self.log_error(f"Error scraping {product_link}: {e}")
@@ -229,8 +229,11 @@ class SheepOfficialScraper(BaseScraper):
         while True:
             try:
                 self.log_info(f"Scraping page {page_number}: {current_url}")
-                response = requests.get(current_url, headers=self.headers, timeout=10)
-                response.raise_for_status()
+                response = self.make_request(
+                    current_url,
+                    verify=False,
+                    headers=self.headers
+                )
                 
                 soup = BeautifulSoup(response.text, 'html.parser')   
 
@@ -265,7 +268,8 @@ class SheepOfficialScraper(BaseScraper):
         all_products_links = await self.scrape_products_links(url) 
         for product_link in all_products_links:
             pdp_data = await self.scrape_pdp(product_link)
-            all_products.append(pdp_data)
+            if pdp_data is not None:
+                all_products.append(pdp_data)
         
         return all_products
     
@@ -279,13 +283,13 @@ class SheepOfficialScraper(BaseScraper):
                 
             if final_data:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-                output_file = f"sheepOfficialProducts_{timestamp}.json"
+                output_file = f"{self.store_name}_{timestamp}.json"
                 output_path = os.path.join(self.module_dir, output_file)
                 with open(output_path, "w", encoding="utf-8") as f:
                     json.dump(final_data, f, indent=4, ensure_ascii=False)
                 
                 self.log_info(f"Total {len(category_urls)} categories")
-                self.log_info(f"Saved {len(final_data)} products into sheepOfficialProducts.json")
+                self.log_info(f"Saved {len(final_data)} products into {self.store_name}_{timestamp}.json")
                 self.log_info(f"Product Sample Data: {json.dumps(final_data[0], separators=(',', ':'))}")
 
             else:

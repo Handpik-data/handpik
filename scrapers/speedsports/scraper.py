@@ -10,13 +10,16 @@ from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
 class SpeedSportsScraper(BaseScraper):
-    def __init__(self):
+    def __init__(self, proxies=None, request_delay=0.1):
         super().__init__(
             base_url="https://speedsports.pk",
-            logger_name=SPEEDSPORTS_LOGGER
+            logger_name=SPEEDSPORTS_LOGGER,
+            proxies=proxies,
+            request_delay=request_delay
         )
         self.module_dir = os.path.dirname(os.path.abspath(__file__))
-        self.a = 1
+        self.store_name = "speedsports"
+        self.all_product_links_ = []
 
     async def get_unique_urls_from_file(self, filename):
         if not isinstance(filename, str) or not filename.strip():
@@ -29,30 +32,36 @@ class SpeedSportsScraper(BaseScraper):
             return list(set(line.strip() for line in file if line.strip()))
         
     async def scrape_pdp(self, product_link):
+        if product_link in self.all_product_links_:
+            return None
+        
+        self.all_product_links_.append(product_link)
+        product_data = {
+            'store_name': self.store_name,
+            'title': None,
+            'sku': None,
+            'description': None,
+            'currency': None,
+            'original_price': None,
+            'sale_price': None,
+            'images': [],
+            'brand': None,
+            'availability': None,
+            'category': None,
+            'product_url': product_link,
+            'variants': [],
+            'attributes': {},
+            'raw_data': {},
+        }
         try:
-            session = requests.Session()
-            retries = Retry(
-                total=3,
-                backoff_factor=0.5,
-                status_forcelist=[500, 502, 503, 504],
-                allowed_methods=frozenset(['GET', 'POST'])
-            )
-            session.mount('https://', HTTPAdapter(max_retries=retries))
-
-            response = session.get(
+            response = self.make_request(
                 product_link,
                 verify=False,
-                headers={
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-                },
-                timeout=15
+                headers=self.headers
             )
-
             soup = BeautifulSoup(response.text, 'html.parser')
         
-            product_data = {}
 
-            product_data['url'] = product_link
             title_el = soup.select_one('h1.t4s-product__title')
             product_data['title'] = title_el.get_text(strip=True) if title_el else None
 
@@ -66,15 +75,10 @@ class SpeedSportsScraper(BaseScraper):
                     return text.replace('Rs.', '').replace(',', '').strip()
 
                 if del_el and ins_el:
-                    product_data['price_original'] = clean_price(del_el.get_text())
-                    product_data['price_discounted'] = clean_price(ins_el.get_text())
+                    product_data['original_price'] = clean_price(del_el.get_text())
+                    product_data['sale_price'] = clean_price(ins_el.get_text())
                 else:
-                    product_data['price'] = clean_price(price_container.get_text())
-
-                if badge_el:
-                    match = re.search(r'(\d+)%', badge_el.get_text())
-                    if match:
-                        product_data['discount_percent'] = match.group(1)
+                    product_data['original_price'] = clean_price(price_container.get_text())
 
 
             sku_el = soup.select_one('[data-product__sku-number]')
@@ -104,7 +108,7 @@ class SpeedSportsScraper(BaseScraper):
                     description = description.replace('\n', ' ').strip()
                     
                 except Exception as e:
-                    pass
+                    self.log_debug(f"Error parsing variants JSON: {e}")
             product_data['brand'] = brand
             product_data['description'] = description
                 
@@ -146,12 +150,12 @@ class SpeedSportsScraper(BaseScraper):
                             'title': var_obj.get('title'),
                             'price': var_obj.get('price') / 100, 
                             'sku': var_obj.get('sku'),
-                            'available': var_obj.get('available'),
+                            'availability': var_obj.get('available'),
                             **variant_options
                         }
                         variants_data.append(v_data)
                 except Exception as e:
-                    self.log_error(f"Error parsing variants JSON: {e}")
+                    self.log_debug(f"Error parsing variants JSON: {e}")
 
             product_data['variants'] = variants_data
 
@@ -167,8 +171,11 @@ class SpeedSportsScraper(BaseScraper):
         while True:
             try:
                 self.log_info(f"Scraping page {page_number}: {current_url}")
-                response = requests.get(current_url, headers=self.headers, timeout=10)
-                response.raise_for_status()
+                response = self.make_request(
+                    current_url,
+                    verify=False,
+                    headers=self.headers
+                )
                 
                 soup = BeautifulSoup(response.text, 'html.parser')   
 
@@ -203,7 +210,8 @@ class SpeedSportsScraper(BaseScraper):
         all_products_links = await self.scrape_products_links(url)
         for product_link in all_products_links:
             pdp_data = await self.scrape_pdp(product_link)
-            all_products.append(pdp_data)
+            if pdp_data is not None:
+                all_products.append(pdp_data)
         
         return all_products
     
@@ -217,17 +225,17 @@ class SpeedSportsScraper(BaseScraper):
                 
             if final_data:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-                output_file = f"speedSportsProducts_{timestamp}.json"
+                output_file = f"{self.store_name}_{timestamp}.json"
                 output_path = os.path.join(self.module_dir, output_file)
                 with open(output_path, "w", encoding="utf-8") as f:
                     json.dump(final_data, f, indent=4, ensure_ascii=False)
                 
                 self.log_info(f"Total {len(category_urls)} categories")
-                self.log_info(f"Saved {len(final_data)} products into speedSportsProducts.json")
+                self.log_info(f"Saved {len(final_data)} products into {self.store_name}_{timestamp}.json")
                 self.log_info(f"Product Sample Data: {json.dumps(final_data[0], separators=(',', ':'))}")
 
             else:
                 self.log_error("No data scraped")
                         
         except Exception as e:
-            self.log_error(f"Error: {e}")  
+            self.log_error(f"Error: {e}")    

@@ -11,20 +11,15 @@ from urllib3.util import Retry
 from bs4.element import NavigableString
 
 class SaeedGhaniScraper(BaseScraper):
-    def __init__(self):
+    def __init__(self, proxies=None, request_delay=0.1):
         super().__init__(
             base_url="https://saeedghani.pk",
-            logger_name=SAEEDGHANI_LOGGER
+            logger_name=SAEEDGHANI_LOGGER,
+            proxies=proxies,
+            request_delay=request_delay
         )
         self.module_dir = os.path.dirname(os.path.abspath(__file__))
-        self.session = requests.Session()
-        retries = Retry(
-            total=3,
-            backoff_factor=0.5,
-            status_forcelist=[509, 510, 511, 512],
-            allowed_methods=frozenset(['GET', 'POST'])
-        )
-        self.session.mount('https://', HTTPAdapter(max_retries=retries))
+        self.store_name = "saeedghani"
         self.all_product_links_ = []
 
     async def get_unique_urls_from_file(self, filename):
@@ -43,32 +38,35 @@ class SaeedGhaniScraper(BaseScraper):
         cleaned = re.sub(r'(Rs\.?|,|\s)', '', price_str)
         return cleaned
         
-    async def scrape_pdp(self, product_link):
-        
+    async def scrape_pdp(self, product_link):        
                 
         if product_link in self.all_product_links_:
             return None
         
         self.all_product_links_.append(product_link)
-        product_data  = {
-            "on_sale_price": None,
-            "price": None,
-            "title": None,
-            "product_link": product_link,
-            "images": []
+        product_data = {
+            'store_name': self.store_name,
+            'title': None,
+            'sku': None,
+            'description': None,
+            'currency': None,
+            'original_price': None,
+            'sale_price': None,
+            'images': [],
+            'brand': None,
+            'availability': None,
+            'category': None,
+            'product_url': product_link,
+            'variants': [],
+            'attributes': {},
+            'raw_data': {},
         }
 
         try:
-            response = self.session.get(
+            response = self.make_request(
                 product_link,
                 verify=False,
-                headers={
-                    "User-Agent":
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/91.0.4472.124 Safari/537.36"
-                },
-                timeout=15
+                headers=self.headers
             )
             soup = BeautifulSoup(response.text, "html.parser")
 
@@ -90,10 +88,10 @@ class SaeedGhaniScraper(BaseScraper):
                         compare_price = await self.clean_price_string(compare_price.find('span', class_='money').get_text(strip=True))
                         on_sale = await self.clean_price_string(prices_div.find('span', class_='on-sale').find('span', class_='money').get_text(strip=True))
 
-                        product_data['price'] = compare_price
-                        product_data['on_sale_price'] = on_sale
+                        product_data['original_price'] = compare_price
+                        product_data['sale_price'] = on_sale
                     else:
-                        product_data['price'] = await self.clean_price_string(prices_div.find('span', class_='money').get_text(strip=True))
+                        product_data['original_price'] = await self.clean_price_string(prices_div.find('span', class_='money').get_text(strip=True))
 
                 except Exception as e:
                     self.log_debug(f"Exception occured while scraping product's prices : {e}")
@@ -105,7 +103,11 @@ class SaeedGhaniScraper(BaseScraper):
                         main_text = ''.join(link.find_all(text=True, recursive=False)).strip()
                         target_div = product_info_main.find('div', class_='panel-collapse', id=link['href'][1:])
                         text = target_div.get_text(separator='\n', strip=True)
-                        product_data[main_text] = text
+                        if main_text == 'What It Is':
+                            product_data['description'] = text
+                        else:
+                            product_data['attributes'][main_text] = text
+
                 except Exception as e:
                     self.log_debug(f"Exception occured while scraping product's collapse : {e}")
 
@@ -142,8 +144,11 @@ class SaeedGhaniScraper(BaseScraper):
         while True:
             try:
                 self.log_info(f"Scraping page {page_number}: {current_url}")
-                response = requests.get(current_url, headers=self.headers, timeout=10)
-                response.raise_for_status()
+                response = self.make_request(
+                    current_url,
+                    verify=False,
+                    headers=self.headers
+                )
                 
                 soup = BeautifulSoup(response.text, 'html.parser')
                 
@@ -197,13 +202,13 @@ class SaeedGhaniScraper(BaseScraper):
                 
             if final_data:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-                output_file = f"SaeedGhaniProducts_{timestamp}.json"
+                output_file = f"{self.store_name}_{timestamp}.json"
                 output_path = os.path.join(self.module_dir, output_file)
                 with open(output_path, "w", encoding="utf-8") as f:
                     json.dump(final_data, f, indent=4, ensure_ascii=False)
                 
                 self.log_info(f"Total {len(category_urls)} categories")
-                self.log_info(f"Saved {len(final_data)} products into SaeedGhaniProducts.json")
+                self.log_info(f"Saved {len(final_data)} products into {self.store_name}_{timestamp}.json")
                 self.log_info(f"Product Sample Data: {json.dumps(final_data[0], separators=(',', ':'))}")
 
             else:

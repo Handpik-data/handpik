@@ -10,13 +10,17 @@ from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
 class ShafferScraper(BaseScraper):
-    def __init__(self):
+    def __init__(self, proxies=None, request_delay=0.1):
         super().__init__(
             base_url="https://shaffer.store",
-            logger_name=SHAFFER_LOGGER
+            logger_name=SHAFFER_LOGGER,
+            proxies=proxies,
+            request_delay=request_delay
         )
         self.module_dir = os.path.dirname(os.path.abspath(__file__))
-
+        self.store_name = "shaffer"
+        self.all_product_links_ = []
+        
     async def get_unique_urls_from_file(self, filename):
         if not isinstance(filename, str) or not filename.strip():
             raise ValueError("Filename must be a non-empty string.")
@@ -28,88 +32,83 @@ class ShafferScraper(BaseScraper):
             return list(set(line.strip() for line in file if line.strip()))
         
     async def scrape_pdp(self, product_link):
+
+        if product_link in self.all_product_links_:
+            return None
+        
+        self.all_product_links_.append(product_link)
         product_data = {
-            "title": None,
-            "handle": None,
-            "brand": None,
-            "price": None,
-            "currency": None,
-            "description": None,
-            "inventory_text": None,
-            "images": [],
-            "availability": None,
+            'store_name': self.store_name,
+            'title': None,
+            'sku': None,
+            'description': None,
+            'currency': None,
+            'original_price': None,
+            'sale_price': None,
+            'images': [],
+            'brand': None,
+            'availability': None,
+            'category': None,
+            'product_url': product_link,
+            'variants': [],
+            'attributes': {},
+            'raw_data': {},
         }
 
         try:
-            session = requests.Session()
-            retries = Retry(
-                total=3,
-                backoff_factor=0.5,
-                status_forcelist=[509, 510, 511, 512],
-                allowed_methods=frozenset(['GET', 'POST'])
-            )
-            session.mount('https://', HTTPAdapter(max_retries=retries))
-
-            response = session.get(
+            response = self.make_request(
                 product_link,
                 verify=False,
-                headers={
-                    "User-Agent": (
-                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                        "AppleWebKit/537.36 (KHTML, like Gecko) "
-                        "Chrome/91.0.4472.124 Safari/537.36"
-                    )
-                },
-                timeout=15
+                headers=self.headers
             )
             soup = BeautifulSoup(response.text, "html.parser")
 
             try:
                 h1_tag = soup.find("h1", class_="main-product__title")
                 product_data["title"] = h1_tag.get_text(strip=True) if h1_tag else None
-            except:
-                pass
+            except Exception as e:
+                self.log_debug(f"Exception occured while scraping product's titles : {e}")
 
             try:
                 canonical = soup.find("link", rel="canonical")
                 if canonical and canonical.get("href"):
                     url_parts = canonical["href"].rstrip("/").split("/")
                     handle = url_parts[-1].split("?")[0]
-                    product_data["handle"] = handle
-            except:
-                pass
+                    product_data["category"] = handle
+            except Exception as e:
+                self.log_debug(f"Exception occured while scraping product's category : {e}")
 
             try:
                 brand_tag = soup.find("p", class_="underlined-link--no-offset")
                 if brand_tag:
                     product_data["brand"] = brand_tag.get_text(strip=True)
-            except:
-                pass
+            except Exception as e:
+                self.log_debug(f"Exception occured while scraping product's brand : {e}")
 
             try:
                 og_price = soup.find("meta", attrs={"property": "og:price:amount"})
                 og_currency = soup.find("meta", attrs={"property": "og:price:currency"})
                 if og_price and og_price.get("content"):
                     cleaned_price = og_price["content"].replace(",", "")
-                    product_data["price"] = float(cleaned_price)
+                    product_data["original_price"] = float(cleaned_price)
                 if og_currency and og_currency.get("content"):
                     product_data["currency"] = og_currency["content"]
-            except:
-                pass
+            except Exception as e:
+                self.log_debug(f"Exception occured while scraping product's currency and original price : {e}")
 
             try:
                 desc_div = soup.find("div", class_="accordion__content p2 p2--fixed rte")
                 if desc_div:
                     product_data["description"] = desc_div.get_text(separator="\n", strip=True)
-            except:
-                pass
+            except Exception as e:
+                self.log_debug(f"Exception occured while scraping product's description : {e}")
 
             try:
                 inv_tag = soup.find("div", class_="main-product__inventory-notice")
                 if inv_tag:
-                    product_data["inventory_text"] = inv_tag.get_text(strip=True)
-            except:
-                pass
+                    product_data['attributes']["inventory_text"] = inv_tag.get_text(strip=True)
+            except Exception as e:
+                self.log_debug(f"Exception occured while scraping product's attributes : {e}")
 
             try:
                 
@@ -120,8 +119,8 @@ class ShafferScraper(BaseScraper):
                     if src and src not in images:
                         images.append("https:" + src)
                 product_data["images"] = images
-            except:
-                pass
+            except Exception as e:
+                self.log_debug(f"Exception occured while scraping product's images : {e}")
 
       
             try:
@@ -129,11 +128,11 @@ class ShafferScraper(BaseScraper):
                 if ld_json_tag:
                     text_json = ld_json_tag.string.strip()
                     if '"availability" : "http://schema.org/InStock"' in text_json:
-                        product_data["availability"] = "In Stock"
+                        product_data["availability"] = True
                     else:
-                        product_data["availability"] = "Out of Stock"
-            except:
-                pass
+                        product_data["availability"] = False
+            except Exception as e:
+                self.log_debug(f"Exception occured while scraping product's availability : {e}")
 
         
 
@@ -151,8 +150,11 @@ class ShafferScraper(BaseScraper):
         while True:
             try:
                 self.log_info(f"Scraping page {page_number}: {current_url}")
-                response = requests.get(current_url, headers=self.headers, timeout=10)
-                response.raise_for_status()
+                response = self.make_request(
+                    current_url,
+                    verify=False,
+                    headers=self.headers
+                )
                 
                 soup = BeautifulSoup(response.text, 'html.parser')
                 main_div = soup.find('ul', class_='product-grid')
@@ -184,7 +186,8 @@ class ShafferScraper(BaseScraper):
         all_products_links = await self.scrape_products_links(url)
         for product_link in all_products_links:
             pdp_data = await self.scrape_pdp(product_link)
-            all_products.append(pdp_data)
+            if pdp_data is not None:
+                all_products.append(pdp_data)
         
         return all_products
     
@@ -198,13 +201,13 @@ class ShafferScraper(BaseScraper):
                 
             if final_data:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-                output_file = f"shafferProducts_{timestamp}.json"
+                output_file = f"{self.store_name}_{timestamp}.json"
                 output_path = os.path.join(self.module_dir, output_file)
                 with open(output_path, "w", encoding="utf-8") as f:
                     json.dump(final_data, f, indent=4, ensure_ascii=False)
                 
                 self.log_info(f"Total {len(category_urls)} categories")
-                self.log_info(f"Saved {len(final_data)} products into shafferProducts.json")
+                self.log_info(f"Saved {len(final_data)} products into {self.store_name}_{timestamp}.json")
                 self.log_info(f"Product Sample Data: {json.dumps(final_data[0], separators=(',', ':'))}")
 
             else:

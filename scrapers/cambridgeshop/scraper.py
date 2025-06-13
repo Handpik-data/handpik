@@ -10,11 +10,12 @@ from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
 class CambridgeShopScraper(BaseScraper):
-    def __init__(self, proxies=None):
+    def __init__(self, proxies=None, request_delay=0.1):
         super().__init__(
             base_url="https://thecambridgeshop.com",
             logger_name=CAMBRIDGESHOP_LOGGER,
-            proxies=proxies
+            proxies=proxies,
+            request_delay=request_delay
         )
         self.module_dir = os.path.dirname(os.path.abspath(__file__))
         self.store_name = "cambridgeshop"
@@ -41,8 +42,22 @@ class CambridgeShopScraper(BaseScraper):
             return None
         
         self.all_product_links_.append(product_link)
-        product_data  = {
-            
+        product_data = {
+            'store_name': self.store_name,
+            'title': None,
+            'sku': None,
+            'description': None,
+            'currency': None,
+            'original_price': None,
+            'sale_price': None,
+            'images': [],
+            'brand': None,
+            'availability': None,
+            'category': None,
+            'product_url': product_link,
+            'variants': [],
+            'attributes': {},
+            'raw_data': {},
         }
 
         try:
@@ -67,7 +82,7 @@ class CambridgeShopScraper(BaseScraper):
                     page_price_wrapper = product_info_main.find('div', class_="t4s-product-price")
                     if page_price_wrapper:
                         page_price_span = page_price_wrapper.find('span')
-                        product_data["price"] = self.clean_price_string(page_price_span.get_text(strip=True))
+                        product_data["original_price"] = await self.clean_price_string(page_price_span.get_text(strip=True))
                     
                 except Exception as e:
                     self.log_debug(f"Exception occured while scraping product's price : {e}")
@@ -85,7 +100,7 @@ class CambridgeShopScraper(BaseScraper):
                             result.append({
                                 "size": variant.get("option2", ""),
                                 "color": variant.get("option1", ""),
-                                "available": variant.get("available", False)
+                                "availability": variant.get("available", False)
                             })
 
                             product_data['variants'] = result
@@ -125,7 +140,10 @@ class CambridgeShopScraper(BaseScraper):
                             data[key] = value
 
                 for key, value in data.items():
-                    product_data[key] = value
+                    if key == 'Product Details':
+                        product_data['description'] = value
+                    else:
+                        product_data['attributes'][key] = value
             
             except Exception as e:
                     self.log_debug(f"Exception occured while scraping product's description : {e}")

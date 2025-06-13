@@ -11,7 +11,7 @@ from datetime import datetime
 from utils.LoggerConstants import ZEENWOMAN_LOGGER
 
 class ZeeWomanScraper(BaseScraper):
-    def __init__(self, proxies=None):
+    def __init__(self, proxies=None, request_delay=0.1):
         super().__init__(
             base_url="https://zeenwoman.com",
             logger_name=ZEENWOMAN_LOGGER,
@@ -19,6 +19,7 @@ class ZeeWomanScraper(BaseScraper):
         )
         self.module_dir = os.path.dirname(os.path.abspath(__file__))
         self.store_name = "zeenwoman"
+        self.all_product_links_ = []
 
     async def get_unique_urls_from_file(self, filename):
         if not isinstance(filename, str) or not filename.strip():
@@ -31,11 +32,10 @@ class ZeeWomanScraper(BaseScraper):
             return list(set(line.strip() for line in file if line.strip()))
         
     async def scrape_pdp(self, product_link):
-        response = requests.get(product_link)
-        response.raise_for_status()
-
-        soup = BeautifulSoup(response.text, 'html.parser')
-
+        if product_link in self.all_product_links_:
+            return None
+        
+        self.all_product_links_.append(product_link)
         product_data = {
             'store_name': self.store_name,
             'title': None,
@@ -53,144 +53,167 @@ class ZeeWomanScraper(BaseScraper):
             'attributes': {},
             'raw_data': {},
         }
+        try:
+            response = self.make_request(
+                product_link,
+                verify=False,
+                headers=self.headers
+            )
 
-        product_container = soup.find('div', {'class': 't4s-product__info-container'})
-        if not product_container:
-            return {'error': 'Product container not found'}
+            soup = BeautifulSoup(response.text, 'html.parser')
 
-        product_title_element = soup.find('h1', {'class': 't4s-product__title'})
-        if product_title_element:
-            product_data['title'] = product_title_element.text.strip()
+            product_container = soup.find('div', {'class': 't4s-product__info-container'})
+            if not product_container:
+                return {'error': 'Product container not found'}
 
-        product_price_info = soup.find('div', {'class': 't4s-product__price-review'})
-        if product_price_info:
-            price_container = product_price_info.find('div', {'class': 't4s-product-price'})
-            if price_container:
-                del_price = price_container.find('del')
-                ins_price = price_container.find('ins')
-                single_price = price_container.find('span', {'class': 'money'})
+            product_title_element = soup.find('h1', {'class': 't4s-product__title'})
+            if product_title_element:
+                product_data['title'] = product_title_element.text.strip()
 
-                original_price = sale_price = None
+            product_price_info = soup.find('div', {'class': 't4s-product__price-review'})
+            if product_price_info:
+                price_container = product_price_info.find('div', {'class': 't4s-product-price'})
+                if price_container:
+                    del_price = price_container.find('del')
+                    ins_price = price_container.find('ins')
+                    single_price = price_container.find('span', {'class': 'money'})
 
-                if del_price and ins_price:
-                    original_price = del_price.get_text(strip=True)
-                    sale_price = ins_price.get_text(strip=True)
-                elif single_price:
-                    original_price = single_price.get_text(strip=True)
+                    original_price = sale_price = None
 
-                product_data['original_price'] = original_price
-                product_data['sale_price'] = sale_price
+                    if del_price and ins_price:
+                        original_price = del_price.get_text(strip=True)
+                        sale_price = ins_price.get_text(strip=True)
+                    elif single_price:
+                        original_price = single_price.get_text(strip=True)
 
-        
-        swatch_options = soup.find_all('div', {'class': 't4s-swatch__option'})
-        
-        for option in swatch_options:
-            if 'display: none' in option.get('style', ''):
-                continue
-                
-            attr_name = option.find('h4', {'class': 't4s-swatch__title'}).get_text(strip=True)
-            values = []
+                    product_data['original_price'] = original_price
+                    product_data['sale_price'] = sale_price
+
             
-            for item in option.find_all('div', {'data-swatch-item': True}):
-                values.append(item.get('data-value', item.get_text(strip=True)))
+            swatch_options = soup.find_all('div', {'class': 't4s-swatch__option'})
             
-            if values:
-                product_data[attr_name] = values
-
-        description_div = soup.find('div', class_='full description')
-        if description_div:
-            for p in description_div.find_all('p'):
-                strong = p.find('strong')
-                if not strong:
+            for option in swatch_options:
+                if 'display: none' in option.get('style', ''):
                     continue
-                key = strong.get_text(strip=True).rstrip(':').strip()
-                lines = []
-                current_line = []
-                for elem in strong.next_siblings:
-                    if elem.name == 'br':
-                        line = ' '.join(current_line).strip()
-                        if line:
-                            lines.append(line)
-                        current_line = []
-                    else:
-                        text = elem.get_text(strip=True)
-                        if text:
-                            current_line.append(text)
-                line = ' '.join(current_line).strip()
-                if line:
-                    lines.append(line)
-                if lines:
-                    product_data['attributes'][key] = lines
-            
-            specs_container = description_div.find('div', class_='index-tableContainer')
-            if specs_container:
-                for row in specs_container.find_all('div', class_='index-row'):
-                    key_div = row.find('div', class_='index-rowKey')
-                    value_div = row.find('div', class_='index-rowValue')
-                    if key_div and value_div:
-                        key = key_div.get_text(strip=True)
-                        value = value_div.get_text(strip=True)
-                        product_data['attributes'][key] = [value]
-
-        media_container = soup.find('div', {'class': 't4s-product__media-wrapper'})
-            
-        if media_container:
-            media_items = media_container.find_all('div', {'data-main-slide': True})
-            
-            for item in media_items:
-                img_tag = item.find('img', {'data-master': True})
-                if img_tag and img_tag.has_attr('data-master'):
-                    img_url = img_tag['data-master']
-                    img_url = f"https:{img_url}" if img_url.startswith('//') else img_url
                     
-                    if img_url not in product_data['images']:
-                        product_data['images'].append(img_url)
+                attr_name = option.find('h4', {'class': 't4s-swatch__title'}).get_text(strip=True)
+                values = []
+                
+                for item in option.find_all('div', {'data-swatch-item': True}):
+                    values.append(item.get('data-value', item.get_text(strip=True)))
+                
+                if values:
+                    if len(values) == 1:
+                        values = values[0]
+                    if attr_name == 'Product Detail':
+                        product_data['description'] = values
+                    else:
+                        product_data['attributes'][attr_name] = values
 
-        variants_tag = soup.find('script', class_='pr_variants_json')
-        if variants_tag:
-            try:
-                variants_json = json.loads(variants_tag.string.strip())
-            except Exception:
+            description_div = soup.find('div', class_='full description')
+            if description_div:
+                for p in description_div.find_all('p'):
+                    strong = p.find('strong')
+                    if not strong:
+                        continue
+                    key = strong.get_text(strip=True).rstrip(':').strip()
+                    lines = []
+                    current_line = []
+                    for elem in strong.next_siblings:
+                        if elem.name == 'br':
+                            line = ' '.join(current_line).strip()
+                            if line:
+                                lines.append(line)
+                            current_line = []
+                        else:
+                            text = elem.get_text(strip=True)
+                            if text:
+                                current_line.append(text)
+                    line = ' '.join(current_line).strip()
+                    if line:
+                        lines.append(line)
+                    if lines:
+                        if len(lines) == 1:
+                            lines = lines[0]
+                        if key == 'Product Detail':
+                            product_data['description'] = lines
+                        else:
+                            product_data['attributes'][key] = lines
+                
+                specs_container = description_div.find('div', class_='index-tableContainer')
+                if specs_container:
+                    for row in specs_container.find_all('div', class_='index-row'):
+                        key_div = row.find('div', class_='index-rowKey')
+                        value_div = row.find('div', class_='index-rowValue')
+                        if key_div and value_div:
+                            key = key_div.get_text(strip=True)
+                            value = value_div.get_text(strip=True)
+                            if key == 'Product Detail':
+                                product_data['description'] = value
+                            else:
+                                product_data['attributes'][key] = value
+
+            media_container = soup.find('div', {'class': 't4s-product__media-wrapper'})
+                
+            if media_container:
+                media_items = media_container.find_all('div', {'data-main-slide': True})
+                
+                for item in media_items:
+                    img_tag = item.find('img', {'data-master': True})
+                    if img_tag and img_tag.has_attr('data-master'):
+                        img_url = img_tag['data-master']
+                        img_url = f"https:{img_url}" if img_url.startswith('//') else img_url
+                        
+                        if img_url not in product_data['images']:
+                            product_data['images'].append(img_url)
+
+            variants_tag = soup.find('script', class_='pr_variants_json')
+            if variants_tag:
+                try:
+                    variants_json = json.loads(variants_tag.string.strip())
+                except Exception:
+                    variants_json = []
+            else:
                 variants_json = []
-        else:
-            variants_json = []
 
-        options_tag = soup.find('script', class_='pr_options_json')
-        if options_tag:
-            try:
-                options_json = json.loads(options_tag.string.strip())
-            except Exception:
+            options_tag = soup.find('script', class_='pr_options_json')
+            if options_tag:
+                try:
+                    options_json = json.loads(options_tag.string.strip())
+                except Exception:
+                    options_json = []
+            else:
                 options_json = []
-        else:
-            options_json = []
 
-        idx_to_optname = {}
-        for opt in options_json:
-            pos = opt.get('position', 1)
-            opt_name = opt.get('name') or f"Option{pos}"
-            idx_to_optname[pos] = opt_name
+            idx_to_optname = {}
+            for opt in options_json:
+                pos = opt.get('position', 1)
+                opt_name = opt.get('name') or f"Option{pos}"
+                idx_to_optname[pos] = opt_name
 
-        all_variant_combos = []
+            all_variant_combos = []
 
-        for variant in variants_json:
-            combo_dict = {}
+            for variant in variants_json:
+                combo_dict = {}
 
-            for i in range(1, 11):
-                key_opt = f"option{i}"
-                if key_opt in variant:
-                    opt_val = variant[key_opt]
-                    if not opt_val:  
+                for i in range(1, 11):
+                    key_opt = f"option{i}"
+                    if key_opt in variant:
+                        opt_val = variant[key_opt]
+                        if not opt_val:  
+                            break
+
+                        attribute_name = idx_to_optname.get(i, f"Option{i}")
+                        combo_dict[attribute_name] = opt_val
+                    else:
                         break
 
-                    attribute_name = idx_to_optname.get(i, f"Option{i}")
-                    combo_dict[attribute_name] = opt_val
-                else:
-                    break
+                combo_dict['availability'] = variant.get("available", False)
+                all_variant_combos.append(combo_dict)
 
-            combo_dict["in_stock"] = variant.get("available", False)
-            all_variant_combos.append(combo_dict)
-
-        product_data["variants"] = all_variant_combos
+            product_data["variants"] = all_variant_combos
+        except Exception as e:
+            self.log_error(f"Error scraping product data from {product_link}: {e}")   
         return product_data
 
     async def scrape_products_links(self, url):
@@ -200,8 +223,11 @@ class ZeeWomanScraper(BaseScraper):
         while True:
             try:
                 self.log_info(f"Scraping page {page_number}: {current_url}")
-                response = requests.get(current_url, headers=self.headers, timeout=10)
-                response.raise_for_status()
+                response = self.make_request(
+                    current_url,
+                    verify=False,
+                    headers=self.headers
+                )
                 
                 soup = BeautifulSoup(response.text, 'html.parser')
                 product_divs = soup.find_all('div', class_='t4s-product')
@@ -232,7 +258,8 @@ class ZeeWomanScraper(BaseScraper):
         all_products_links = await self.scrape_products_links(url)
         for product_link in all_products_links:
             pdp_data = await self.scrape_pdp(product_link)
-            all_products.append(pdp_data)
+            if pdp_data is not None:
+                all_products.append(pdp_data)
         
         return all_products
     

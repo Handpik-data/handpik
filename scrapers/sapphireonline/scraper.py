@@ -10,12 +10,15 @@ from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
 class SapphireScraper(BaseScraper):
-    def __init__(self):
+    def __init__(self, proxies=None, request_delay=0.1):
         super().__init__(
             base_url="https://pk.sapphireonline.pk",
-            logger_name=SAPPHIRE_LOGGER
+            logger_name=SAPPHIRE_LOGGER,
+            proxies=proxies,
+            request_delay=request_delay
         )
         self.module_dir = os.path.dirname(os.path.abspath(__file__))
+        self.store_name = "sapphireonline"
         self.all_product_links_ = []
 
     async def get_unique_urls_from_file(self, filename):
@@ -35,53 +38,34 @@ class SapphireScraper(BaseScraper):
         
         self.all_product_links_.append(product_link)
 
-        session = requests.Session()
-        retries = Retry(
-        total=5,
-        backoff_factor=0.5,
-        status_forcelist=[509, 510, 511, 512, 513, 514, 515, 516, 517, 518],
-        allowed_methods=frozenset(['GET', 'POST'])
-        )
-        session.mount('https://', HTTPAdapter(max_retries=retries))
+        product_data = {
+            'store_name': self.store_name,
+            'title': None,
+            'sku': None,
+            'description': None,
+            'currency': None,
+            'original_price': None,
+            'sale_price': None,
+            'images': [],
+            'brand': None,
+            'availability': None,
+            'category': None,
+            'product_url': product_link,
+            'variants': [],
+            'attributes': {},
+            'raw_data': {},
+        }
         try:
-            response = session.get(
+            response = self.make_request(
                 product_link,
                 verify=False,
-                headers={
-                    'User-Agent': (
-                        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-                        'AppleWebKit/537.36 (KHTML, like Gecko) '
-                        'Chrome/91.0.4472.124 Safari/537.36'
-                    )
-                },
-                timeout=30
+                headers=self.headers
             )
-            response.raise_for_status()
         except Exception as e:
-            return {}
+            self.log_debug(f"Exception occured while making request : {e}")
+            return product_data
 
         soup = BeautifulSoup(response.text, 'html.parser')
-
-        product_data = {
-            "product_id": None,
-            "product_sku": None,
-            "product_mpn": None,
-            "title": None,
-            "description": None,
-            "brand": None,
-            "price": None,
-            "currency": None,
-            "availability": None,
-            "images": [],
-            "category": None,
-            "color": None,
-            "fabric": None,
-            "model_info": None,
-            "product_link": product_link,
-            "details_text": None,
-            "size_list": [],
-            "breadcrumb": [],
-        }
 
         try:
             ld_json_scripts = soup.find_all("script", {"type": "application/ld+json"})
@@ -96,9 +80,9 @@ class SapphireScraper(BaseScraper):
                         if data.get('@type') == 'Product':
                             product_data = self.parse_ldjson_product(data, product_data)
                 except Exception:
-                    pass
+                    self.log_debug(f"Exception occured while parsing ldjson_product : {e}")
         except Exception as e:
-            pass
+            self.log_debug(f"Exception occured while parsing ldjson_product : {e}")
 
         try:
             all_scripts = soup.find_all("script")
@@ -117,19 +101,20 @@ class SapphireScraper(BaseScraper):
                                 products = detail.get("products", [])
                                 if products:
                                     p = products[0]
-                                    product_data["product_id"] = p.get("id", product_data["product_id"])
-                                    product_data["title"] = p.get("name", product_data["title"])
+                                    product_data["sku"] = p.get("id", product_data["sku"])
+                                    if not product_data['title'] and product_data['title'] == "":
+                                        product_data["title"] = p.get("name", product_data["title"])
                                     product_data["category"] = p.get("category", product_data["category"])
                                     price_str = p.get("price")
                                     try:
-                                        if price_str:
-                                            product_data["price"] = float(price_str)
+                                        if price_str and not product_data['original_price'] and product_data['original_price'] == "":
+                                            product_data["original_price"] = float(price_str)
                                     except ValueError:
-                                        pass
+                                        self.log_debug(f"Exception occured while parsing price : {e}")
                             except Exception:
-                                pass
+                                self.log_debug(f"Exception occured while parsing dataLayerEvent : {e}")
         except Exception as e:
-            pass
+            self.log_debug(f"Exception occured while parsing script : {e}")
 
         try:
             details_block = soup.find("div", {"class": "collapsible-content"}, style=lambda val: val and "display: block" in val)
@@ -137,28 +122,28 @@ class SapphireScraper(BaseScraper):
                 value_div = details_block.find("div", {"id": "collapsible-details-1"})
                 if value_div:
                     details_text = value_div.get_text(separator="\n").strip()
-                    product_data["details_text"] = details_text
+                    product_data['attributes']["details_text"] = details_text
 
                     
                     lines = details_text.splitlines()
                     for line in lines:
                         line = line.strip()
                         if line.lower().startswith("colour:"):
-                            product_data["color"] = line.split(":", 1)[-1].strip()
+                            product_data['attributes']["color"] = line.split(":", 1)[-1].strip()
                         if line.lower().startswith("fabric:"):
-                            product_data["fabric"] = line.split(":", 1)[-1].strip()
+                            product_data["attributes"]["fabric"] = line.split(":", 1)[-1].strip()
         except Exception as e:
-            pass
+            self.log_debug(f"Exception occured while parsing attributes : {e}")
 
         try:
             breadcrumb_div = soup.find("ol", {"class": "breadcrumb"})
             if breadcrumb_div:
                 crumbs = breadcrumb_div.find_all("li")
-                product_data["breadcrumb"] = [
+                product_data['attributes']["breadcrumb"] = [
                     crumb.get_text(strip=True) for crumb in crumbs
                 ]
         except Exception as e:
-            pass
+            self.log_debug(f"Exception occured while parsing breadcrumb : {e}")
 
         try:
             size_items = soup.find_all("div", class_="size-item")
@@ -169,9 +154,10 @@ class SapphireScraper(BaseScraper):
                     size_text = size_span.get_text(strip=True)
                     if size_text:
                         all_sizes.append(size_text)
-            product_data["size_list"] = list(dict.fromkeys(all_sizes))  
+                        
+            product_data["variants"] = [{'size': size} for size in list(dict.fromkeys(all_sizes))  ] 
         except Exception as e:
-            pass
+            self.log_debug(f"Exception occured while parsing variants : {e}")
 
         return product_data
 
@@ -181,12 +167,8 @@ class SapphireScraper(BaseScraper):
             product_data["title"] = data.get("name", product_data["title"])
             product_data["description"] = data.get("description", product_data["description"])
 
-            if data.get("mpn"):
-                product_data["product_mpn"] = data["mpn"]
-                product_data["product_id"] = product_data["product_id"] or data["mpn"]
             if data.get("sku"):
-                product_data["product_sku"] = data["sku"]
-                product_data["product_id"] = product_data["product_id"] or data["sku"]
+                product_data["sku"] = data["sku"]
 
             brand_obj = data.get("brand", {})
             if isinstance(brand_obj, dict):
@@ -203,15 +185,16 @@ class SapphireScraper(BaseScraper):
             offers = data.get("offers", {})
             if isinstance(offers, dict):
                 product_data["currency"] = offers.get("priceCurrency", product_data["currency"])
-                product_data["price"] = offers.get("price", product_data["price"])
+                product_data["original_price"] = offers.get("price", product_data["original_price"])
                 avail_link = offers.get("availability", "")
                 if "InStock" in avail_link:
-                    product_data["availability"] = "InStock"
+                    product_data["availability"] = True
                 else:
-                    product_data["availability"] = "OutOfStock"
+                    product_data["availability"] = False
 
         except Exception as e:
-            pass
+            self.log_debug(f"Exception occured while parsing product : {e}")
+
 
         return product_data
 
@@ -224,26 +207,10 @@ class SapphireScraper(BaseScraper):
         while True:
             try:
                 self.log_info(f"Scraping page {page_number}: {current_url}")
-                session = requests.Session()
-                retries = Retry(
-                    total=5,
-                    backoff_factor=0.5,
-                    status_forcelist=[520, 521, 522, 523, 524, 525, 526, 527, 528],
-                    allowed_methods=frozenset(['GET', 'POST'])
-                )
-                session.mount('https://', HTTPAdapter(max_retries=retries))
-
-                response = session.get(
+                response = self.make_request(
                     current_url,
                     verify=False,
-                    headers={
-                        "User-Agent": (
-                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                            "AppleWebKit/537.36 (KHTML, like Gecko) "
-                            "Chrome/91.0.4472.124 Safari/537.36"
-                        )
-                    },
-                    timeout=30
+                    headers=self.headers
                 )
                 soup = BeautifulSoup(response.text, "html.parser")
                 main_div = soup.find("div", class_="product-grid")
@@ -305,13 +272,13 @@ class SapphireScraper(BaseScraper):
                 
             if final_data:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-                output_file = f"sapphireProducts_{timestamp}.json"
+                output_file = f"{self.store_name}_{timestamp}.json"
                 output_path = os.path.join(self.module_dir, output_file)
                 with open(output_path, "w", encoding="utf-8") as f:
                     json.dump(final_data, f, indent=4, ensure_ascii=False)
                 
                 self.log_info(f"Total {len(category_urls)} categories")
-                self.log_info(f"Saved {len(final_data)} products into sapphireProducts.json")
+                self.log_info(f"Saved {len(final_data)} products into {self.store_name}_{timestamp}.json")
                 self.log_info(f"Product Sample Data: {json.dumps(final_data[0], separators=(',', ':'))}")
 
             else:

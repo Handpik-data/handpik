@@ -11,20 +11,15 @@ from urllib3.util import Retry
 from bs4.element import NavigableString
 
 class SanaSafinazScraper(BaseScraper):
-    def __init__(self):
+    def __init__(self, proxies=None, request_delay=0.1):
         super().__init__(
             base_url="https://www.sanasafinaz.com",
-            logger_name=SANASAFINAZ_LOGGER
+            logger_name=SANASAFINAZ_LOGGER,
+            proxies=proxies,
+            request_delay=request_delay
         )
         self.module_dir = os.path.dirname(os.path.abspath(__file__))
-        self.session = requests.Session()
-        retries = Retry(
-            total=3,
-            backoff_factor=0.5,
-            status_forcelist=[509, 510, 511, 512],
-            allowed_methods=frozenset(['GET', 'POST'])
-        )
-        self.session.mount('https://', HTTPAdapter(max_retries=retries))
+        self.store_name = "sanasafinaz"
         self.all_product_links_ = []
 
     async def get_unique_urls_from_file(self, filename):
@@ -50,27 +45,29 @@ class SanaSafinazScraper(BaseScraper):
             return None
         
         self.all_product_links_.append(product_link)
-        product_data  = {
-            "sizes": [],
-            "old_price": None,
-            "price": None,
-            "title": None,
-            "sku": None,
-            "product_link": product_link,
-            "images": []
+        product_data = {
+            'store_name': self.store_name,
+            'title': None,
+            'sku': None,
+            'description': None,
+            'currency': None,
+            'original_price': None,
+            'sale_price': None,
+            'images': [],
+            'brand': None,
+            'availability': None,
+            'category': None,
+            'product_url': product_link,
+            'variants': [],
+            'attributes': {},
+            'raw_data': {},
         }
 
         try:
-            response = self.session.get(
+            response = self.make_request(
                 product_link,
                 verify=False,
-                headers={
-                    "User-Agent":
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/91.0.4472.124 Safari/537.36"
-                },
-                timeout=15
+                headers=self.headers
             )
             soup = BeautifulSoup(response.text, "html.parser")
 
@@ -101,12 +98,12 @@ class SanaSafinazScraper(BaseScraper):
                         page_special_price = page_price_wrapper.find('span', class_="special-price")
                         if page_special_price:
                             page_old_price = page_price_wrapper.find('span', class_="old-price")
-                            product_data["price"] = await self.clean_price_string(page_special_price.find('span', class_="price").get_text(strip=True))
-                            product_data["old_price"] = await self.clean_price_string(page_old_price.find('span', class_="price").get_text(strip=True))
+                            product_data["sale_price"] = await self.clean_price_string(page_special_price.find('span', class_="price").get_text(strip=True))
+                            product_data["original_price"] = await self.clean_price_string(page_old_price.find('span', class_="price").get_text(strip=True))
                         else:
                             price_final_price = page_price_wrapper.find('span', class_="price-final_price")
                             if price_final_price:
-                                product_data["price"] = await self.clean_price_string(price_final_price.find('span', class_="price").get_text(strip=True))              
+                                product_data["original_price"] = await self.clean_price_string(price_final_price.find('span', class_="price").get_text(strip=True))              
                 except Exception as e:
                     self.log_debug(f"Exception occured while scraping product's price : {e}")
                 
@@ -124,7 +121,8 @@ class SanaSafinazScraper(BaseScraper):
                             if attr.get("code", "").lower() == "size":
                                 sizes = [opt["label"] for opt in attr.get("options", [])]
                                 break
-                        product_data["sizes"] = sizes
+                        variants = [{'size': size} for size in sizes]
+                        product_data["variants"] = variants
                 except Exception as e:
                     self.log_debug(f"Exception occured while scraping product's sizes : {e}")
                 
@@ -151,7 +149,19 @@ class SanaSafinazScraper(BaseScraper):
                                 attribute_name = strong.string.strip().rstrip(':') 
                                 full_text = p.get_text(strip=True)
                                 value = full_text.replace(strong.string, '').strip()
-                                product_data[attribute_name] = value
+                                if attribute_name == "Description":
+                                    product_data['description'] = value
+                                else:
+                                    if ':' in attribute_name:
+                                        key, val = attribute_name.split(':', 1)
+                                        key = key.strip()
+                                        val = val.strip()
+                                        if not value:
+                                            value = val
+                                        else:
+                                            value = f"{val} {value}"
+                                        attribute_name = key
+                                    product_data['attributes'][attribute_name] = value
                 except Exception as e:
                     self.log_debug(f"Exception occured while scraping product's product details : {e}")
 
@@ -168,8 +178,11 @@ class SanaSafinazScraper(BaseScraper):
         while True:
             try:
                 self.log_info(f"Scraping page {page_number}: {current_url}")
-                response = requests.get(current_url, headers=self.headers, timeout=10)
-                response.raise_for_status()
+                response = self.make_request(
+                    current_url,
+                    verify=False,
+                    headers=self.headers
+                )
                 
                 soup = BeautifulSoup(response.text, 'html.parser')
                 main_div = soup.find_all('ol', class_='product-items')
@@ -219,13 +232,13 @@ class SanaSafinazScraper(BaseScraper):
                 
             if final_data:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-                output_file = f"SanasafinazProducts_{timestamp}.json"
+                output_file = f"{self.store_name}_{timestamp}.json"
                 output_path = os.path.join(self.module_dir, output_file)
                 with open(output_path, "w", encoding="utf-8") as f:
                     json.dump(final_data, f, indent=4, ensure_ascii=False)
                 
                 self.log_info(f"Total {len(category_urls)} categories")
-                self.log_info(f"Saved {len(final_data)} products into SanasafinazProducts.json")
+                self.log_info(f"Saved {len(final_data)} products into {self.store_name}_{timestamp}.json")
                 self.log_info(f"Product Sample Data: {json.dumps(final_data[0], separators=(',', ':'))}")
 
             else:

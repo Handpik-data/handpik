@@ -11,20 +11,15 @@ from urllib3.util import Retry
 from bs4.element import NavigableString
 
 class SayaScraper(BaseScraper):
-    def __init__(self):
+    def __init__(self, proxies=None, request_delay=0.1):
         super().__init__(
             base_url="https://saya.pk",
-            logger_name=SAYA_LOGGER
+            logger_name=SAYA_LOGGER,
+            proxies=proxies,
+            request_delay=request_delay
         )
         self.module_dir = os.path.dirname(os.path.abspath(__file__))
-        self.session = requests.Session()
-        retries = Retry(
-            total=3,
-            backoff_factor=0.5,
-            status_forcelist=[509, 510, 511, 512],
-            allowed_methods=frozenset(['GET', 'POST'])
-        )
-        self.session.mount('https://', HTTPAdapter(max_retries=retries))
+        self.store_name = "saya"
         self.all_product_links_ = []
 
     async def get_unique_urls_from_file(self, filename):
@@ -49,29 +44,29 @@ class SayaScraper(BaseScraper):
             return None
         
         self.all_product_links_.append(product_link)
-        product_data  = {
-            "variants_availability": [],
-            "compare_at_price": None,
-            "price": None,
-            "title": None,
-            "sku": None,
-            "barcode": None,
-            "vendor": None,
-            "product_link": product_link,
-            "images": []
+        product_data = {
+            'store_name': self.store_name,
+            'title': None,
+            'sku': None,
+            'description': None,
+            'currency': None,
+            'original_price': None,
+            'sale_price': None,
+            'images': [],
+            'brand': None,
+            'availability': None,
+            'category': None,
+            'product_url': product_link,
+            'variants': [],
+            'attributes': {},
+            'raw_data': {},
         }
 
         try:
-            response = self.session.get(
+            response = self.make_request(
                 product_link,
                 verify=False,
-                headers={
-                    "User-Agent":
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/91.0.4472.124 Safari/537.36"
-                },
-                timeout=15
+                headers=self.headers
             )
             soup = BeautifulSoup(response.text, "html.parser")
             
@@ -95,9 +90,9 @@ class SayaScraper(BaseScraper):
                         variant_option = i['option'+str(option_position)]
                         if variant_option in option_values:
                             variants[option_name] = variant_option
-                    variants['available'] = i['available']
+                    variants['availability'] = i['available']
                     variants_availability.append(variants)
-                product_data['variants_availability'] = variants_availability
+                product_data['variants'] = variants_availability
             
             except Exception as e:
                 self.log_debug(f"Exception occured while scraping product's available variants : {e}")
@@ -117,13 +112,13 @@ class SayaScraper(BaseScraper):
                     if del_tag:
                         compare_span = del_tag.find("span", class_="money")
                         if compare_span:
-                            product_data["compare_at_price"] = await self.clean_price_string(compare_span.get_text(strip=True))
+                            product_data["original_price"] = await self.clean_price_string(compare_span.get_text(strip=True))
 
                     ins_tag = price_review.find("ins")
                     if ins_tag:
                         price_span = ins_tag.find("span", class_="money")
                         if price_span:
-                            product_data["price"] = await self.clean_price_string(price_span.get_text(strip=True))
+                            product_data["sale_price"] = await self.clean_price_string(price_span.get_text(strip=True))
             except Exception as e:
                 self.log_debug(f"Exception occured while scraping product's price : {e}")
             
@@ -135,14 +130,8 @@ class SayaScraper(BaseScraper):
                         span = sku_wrapper.find("span", class_="t4s-productMeta__value")
                         if span:
                             product_data["sku"] = span.get_text(strip=True)
-
-                    barcode_wrapper = product_meta.find("div", class_="t4s-barcode-wrapper")
-                    if barcode_wrapper:
-                        span = barcode_wrapper.find("span", class_="t4s-barcode-value")
-                        if span:
-                            product_data["barcode"] = span.get_text(strip=True)
             except Exception as e:
-                self.log_debug(f"Exception occured while scraping product's sku and barcode : {e}")
+                self.log_debug(f"Exception occured while scraping product's sku : {e}")
 
             try:    
                 script_tags = soup.find_all("script")
@@ -151,10 +140,10 @@ class SayaScraper(BaseScraper):
                     if "var product =" in content:
                         match = re.search(r'"vendor"\s*:\s*"([^"]+)"', content)
                         if match:
-                            product_data["vendor"] = match.group(1)
+                            product_data["category"] = match.group(1)
                         break
             except Exception as e:
-                self.log_debug(f"Exception occured while scraping product's vendor : {e}")
+                self.log_debug(f"Exception occured while scraping product's category : {e}")
             
             try:
                 description_span = soup.find('span', class_='pro_desc')
@@ -175,14 +164,14 @@ class SayaScraper(BaseScraper):
                                                 text_before_br += content.strip()
                                             else:
                                                 break
-                                        product_data['design'] = text_before_br
+                                        product_data['attributes']['design'] = text_before_br
                             if len(inner_divs) >=2 :
                                 strong_tag = inner_divs[1].find('strong', string='Product Detail')
 
                                 if strong_tag:
                                     div_tag = strong_tag.find_next('div')
                                     if div_tag:
-                                        product_data['product_detail'] = ''.join(div_tag.stripped_strings)
+                                        product_data['description'] = ''.join(div_tag.stripped_strings)
             except Exception as e:
                 self.log_debug(f"Exception occured while scraping product's description : {e}")
             
@@ -214,8 +203,11 @@ class SayaScraper(BaseScraper):
         while True:
             try:
                 self.log_info(f"Scraping page {page_number}: {current_url}")
-                response = requests.get(current_url, headers=self.headers, timeout=10)
-                response.raise_for_status()
+                response = self.make_request(
+                    current_url,
+                    verify=False,
+                    headers=self.headers
+                )
                 
                 soup = BeautifulSoup(response.text, 'html.parser')
 
@@ -265,13 +257,13 @@ class SayaScraper(BaseScraper):
                 
             if final_data:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-                output_file = f"sayaProducts_{timestamp}.json"
+                output_file = f"{self.store_name}_{timestamp}.json"
                 output_path = os.path.join(self.module_dir, output_file)
                 with open(output_path, "w", encoding="utf-8") as f:
                     json.dump(final_data, f, indent=4, ensure_ascii=False)
                 
                 self.log_info(f"Total {len(category_urls)} categories")
-                self.log_info(f"Saved {len(final_data)} products into sayaProducts.json")
+                self.log_info(f"Saved {len(final_data)} products into {self.store_name}_{timestamp}.json")
                 self.log_info(f"Product Sample Data: {json.dumps(final_data[0], separators=(',', ':'))}")
 
             else:

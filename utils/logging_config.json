@@ -136,59 +136,59 @@
     "loggers": {
         "zeenwoman": {
             "handlers": ["zeenwoman_handler"],
-            "level": "INFO"
+            "level": "DEBUG"
         },
         "wovworld": {
             "handlers": ["wovworld_handler"],
-            "level": "INFO"
+            "level": "DEBUG"
         },
         "sulafah": {
             "handlers": ["sulafah_handler"],
-            "level": "INFO"
+            "level": "DEBUG"
         },
         "sputnik": {
             "handlers": ["sputnik_handler"],
-            "level": "INFO"            
+            "level": "DEBUG"            
         },
         "speedsports": {
             "handlers": ["speedSports_handler"],
-            "level": "INFO"            
+            "level": "DEBUG"            
         },
         "sheepofficial": {
             "handlers": ["sheepOfficial_handler"],
-            "level": "INFO"            
+            "level": "DEBUG"            
         },
         "shaffer": {
             "handlers": ["shaffer_handler"],
-            "level": "INFO"            
+            "level": "DEBUG"            
         },
         "sapphire": {
             "handlers": ["sapphire_handler"],
-            "level": "INFO"            
+            "level": "DEBUG"            
         },
         "saya": {
             "handlers": ["saya_handler"],
-            "level": "INFO"            
+            "level": "DEBUG"            
         },
         "sanasafinaz": {
             "handlers": ["sanasafinaz_handler"],
-            "level": "INFO"            
+            "level": "DEBUG"            
         },
         "saeedghani": {
             "handlers": ["saeedghani_handler"],
-            "level": "INFO"            
+            "level": "DEBUG"            
         },
         "cambridgeshop": {
             "handlers": ["cambridgeshop_handler"],
-            "level": "INFO"            
+            "level": "DEBUG"            
         },
         "outfitters": {
             "handlers": ["outfitters_handler"],
-            "level": "INFO"            
+            "level": "DEBUG"            
         },
         "nishatlinen": {
             "handlers": ["nishatlinen_handler"],
-            "level": "INFO"            
+            "level": "DEBUG"            
         }
     }
 }
