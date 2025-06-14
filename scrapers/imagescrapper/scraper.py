@@ -43,30 +43,31 @@ class ImageScraper(BaseScraper):
 
             soup = BeautifulSoup(html, 'html.parser')
             product_data = {
-                'product_name': None,
-                'sku': None,
-                'original_price': None,
-                'sale_price': None,
-                'save_percent': None,
-                'images': [],
-                'attributes': {
-                    'color': None,        # e.g. "Baby Blue"
-                    'color_code': None,   # e.g. "#a7c0d1"
-                    # Add more attributes if needed
-                },
-                'product_description': {},
-                'product_details': {},
-                'breadcrumbs': [],
-                'product_link': product_link,  # assign here
-                'all_sizes': None,
-                'product_care': None,
-                'shipment_info': None
-            }
+                    'title': None,
+                    'sku': None,
+                    'original_price': None,
+                    'sale_price': None,
+                    'save_percent': None,
+                    'currency':None,
+                    'images': [],
+                    'attributes': {
+                        'color': None,        # e.g. "Baby Blue"
+                        'color_code': None,   # e.g. "#a7c0d1"
+                    },
+                    'description ': {},
+                    'product_details': {},
+                    'breadcrumbs': [],
+                    'product_link': product_link,  # assign here
+                    'product_care': None,
+                    'shipment_info': None,
+                    'variants': []  # <-- Correct key and type (list of dicts)
+                }
+            
 
             # Product name
             title_tag = soup.select_one('a.product__title > h2.h1')
             if title_tag:
-                product_data['product_name'] = title_tag.get_text(strip=True)
+                product_data['title'] = title_tag.get_text(strip=True)
             else:
                 self.log_info("Product name not found.")
 
@@ -78,7 +79,8 @@ class ImageScraper(BaseScraper):
                 if 'Article Code :' in text:
                     product_data['sku'] = text.split('Article Code :')[-1].strip()
 
-                original_price = sale_price = save_percent = None
+                
+                original_price = sale_price = save_percent = currency = None
 
                 price_container = soup.find('div', class_='price__container')
                 if price_container:
@@ -88,7 +90,8 @@ class ImageScraper(BaseScraper):
                         if price_tag:
                             money_tag = price_tag.find('span', class_='money')
                             if money_tag:
-                                original_price = money_tag.get_text(strip=True)
+                                text = money_tag.get_text(strip=True)
+                                original_price = text
 
                     sale_div = price_container.find('div', class_='price__sale')
                     if sale_div:
@@ -96,16 +99,21 @@ class ImageScraper(BaseScraper):
                         if sale_tag:
                             money_tag = sale_tag.find('span', class_='money')
                             if money_tag:
-                                sale_price = money_tag.get_text(strip=True)
+                                text = money_tag.get_text(strip=True)
+                                sale_price = text
 
-                    if not sale_price or sale_price == original_price:
-                        sale_price = None
-                        save_percent = None
-                    else:
+                    # Extract numeric values for calculation & detect currency
+                    if original_price:
                         try:
-                            orig_val = int(original_price.replace('PKR', '').replace(',', '').strip())
-                            sale_val = int(sale_price.replace('PKR', '').replace(',', '').strip())
-                            if orig_val > sale_val:
+                            # Extract currency (non-digit prefix, e.g., PKR, $, Rs)
+                            import re
+                            currency_match = re.match(r'([^\d]+)', original_price.strip())
+                            currency = currency_match.group(1).strip() if currency_match else None
+
+                            orig_val = int(re.sub(r'[^\d]', '', original_price))
+                            sale_val = int(re.sub(r'[^\d]', '', sale_price)) if sale_price else None
+
+                            if sale_val and orig_val > sale_val:
                                 discount = round(((orig_val - sale_val) / orig_val) * 100)
                                 save_percent = f"{discount}%"
                             else:
@@ -113,11 +121,13 @@ class ImageScraper(BaseScraper):
                         except Exception:
                             save_percent = None
                 else:
-                    original_price = sale_price = save_percent = None
+                    original_price = sale_price = save_percent = currency = None
 
+                # ✅ Save to product_data dictionary
                 product_data['original_price'] = original_price
                 product_data['sale_price'] = sale_price
                 product_data['save_percent'] = save_percent
+                product_data['currency'] = currency
 
            # Images
             product_data['images'] = []  # Ensure it's initialized
@@ -175,9 +185,9 @@ class ImageScraper(BaseScraper):
                 paragraphs = [p.get_text(separator='\n', strip=True).replace('\xa0', ' ') for p in description_div.find_all('p')]
 
                 # Join paragraphs into a single string with double newlines
-                product_data['product_description'] = '\n\n'.join(paragraphs)
+                product_data['description '] = '\n\n'.join(paragraphs)
             else:
-                product_data['product_description'] = None
+                product_data['description '] = None
 
            # Assuming `soup` is already defined using BeautifulSoup(html, 'html.parser')
 
@@ -223,17 +233,42 @@ class ImageScraper(BaseScraper):
                 if text:
                     product_data['breadcrumbs'].append(text)
 
-           # Sizes
-            all_sizes = []
-            size_fieldset = soup.find('fieldset', class_='custom-option-size')
-            if size_fieldset:
-                size_inputs = size_fieldset.find_all('input', {'name': 'Size', 'type': 'radio'})
-                for input_tag in size_inputs:
-                    size_value = input_tag.get('value', '').strip()
-                    if size_value:
-                        all_sizes.append(size_value)
+                            # Start variant scraping
+                variants = []
 
-            product_data['all_sizes'] = all_sizes or None
+                # Step 1: Get all color labels
+                color_labels = soup.find_all('label', class_='product-form_custom_label Color--label')
+                colors = []
+
+                for label in color_labels:
+                    color_text = label.get_text(strip=True).replace("Variant sold out or unavailable", "").strip()
+                    if color_text:
+                        colors.append(color_text)
+
+                # Step 2: Get sizes
+                size_fieldset = soup.find('fieldset', class_='custom-option-size')
+
+                if size_fieldset and colors:
+                    size_inputs = size_fieldset.find_all('input', {'name': 'Size', 'type': 'radio'})
+                    
+                    for input_tag in size_inputs:
+                        size_value = input_tag.get('value', '').strip()
+                        is_disabled = input_tag.has_attr('disabled') or 'disabled' in input_tag.get('class', [])
+                        available = not is_disabled
+
+                        input_id = input_tag.get('id')
+                        label = size_fieldset.find('label', {'for': input_id})
+                        size_label = label.get_text(strip=True).replace("Variant sold out or unavailable", "").strip() if label else size_value
+
+                        for color in colors:
+                            variants.append({
+                                'size': size_label,
+                                'color': color,
+                                'available': available
+                            })
+
+                # Assign variants into product_data
+                product_data['variants'] = variants if variants else None
 
             return product_data
 

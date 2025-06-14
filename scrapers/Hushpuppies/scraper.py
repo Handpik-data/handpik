@@ -45,27 +45,23 @@ class HushpuppiesScraper(BaseScraper):
             soup = BeautifulSoup(html, 'html.parser')
 
             product_data = {
-        'product_name': None,
+        'title': None,
         'sku': None,
-        'original_price': None,
+        'original price': None,
         'sale_price': None,
+        'currency':None,
         'images': [],
-        'attributes': {
-            'color': None
-        },
-        'product_description': None,
+        'attributes': {},
+        'description': None,
         'product_link': product_link,
-        'sizes': [],
-        'shipment_info': None,
-        'installments': None,       # Pay in 3 Easy Installments
-        'secure_payment': None,     # 100% Secure Online Payments
-        'free_delivery': None       # Free Delivery on All Prepaid Orders
+        'variants': [],
+     
     }
 
             # Product Name
             title_div = soup.select_one('div.product-info__block-item[data-block-id="title"] h1.product-title')
             if title_div:
-                product_data['product_name'] = title_div.get_text(strip=True)
+                product_data['title'] = title_div.get_text(strip=True)
 
 
             # SKU
@@ -85,49 +81,47 @@ class HushpuppiesScraper(BaseScraper):
 
             product_data['images'] = images
 
-                        # Prices
+            
+
+                    # Prices
             price_list = soup.find('price-list', class_='price-list--product')
             if price_list:
                 sale_price_tag = price_list.find('sale-price')
                 compare_price_tag = price_list.find('compare-at-price')
 
-                if sale_price_tag and compare_price_tag:
-                    # Both prices present: item is on sale
-                    product_data['sale_price'] = sale_price_tag.get_text(strip=True)
-                    product_data['original_price'] = compare_price_tag.get_text(strip=True)
-                elif sale_price_tag:
-                    # Only one price — assume it's the regular/original price
-                    product_data['original_price'] = sale_price_tag.get_text(strip=True)
-                    product_data['sale_price'] = None
-                elif compare_price_tag:
-                    # Sometimes only the original price might be marked as compare-at
-                    product_data['original_price'] = compare_price_tag.get_text(strip=True)
-                    product_data['sale_price'] = None
+                sale_text = sale_price_tag.get_text(strip=True) if sale_price_tag else None
+                compare_text = compare_price_tag.get_text(strip=True) if compare_price_tag else None
 
-                                # Find the fieldset for the color option
-                colors = []
-                color_fieldset = soup.select_one('fieldset.variant-picker__option:has(legend:-soup-contains("Color"))')
+                # Decide final original/sale prices
+                product_data['original price'] = compare_text or sale_text
+                product_data['sale price'] = sale_text if compare_text else None
 
-                if color_fieldset:
-                    labels = color_fieldset.select('div.variant-picker__option-values label.color-swatch')
-                    for label in labels:
-                        is_disabled = 'is-disabled' in label.get('class', [])
-                        span = label.find('span', class_='sr-only')
-                        if span:
-                            color_name = span.get_text(strip=True)
-                            if color_name:
-                                # Append a dictionary with color name and availability
-                                colors.append({
-                                    'name': color_name,
-                                    'available': not is_disabled
-                                })
-
-                product_data['attributes']['color'] = colors if colors else None
-
+                # Extract currency directly from the price string (e.g., "Rs.5,499.00" → "Rs")
+                price_text_for_currency = compare_text or sale_text
+                if price_text_for_currency:
+                    match = re.search(r'(Rs|₹|\$|€|£)', price_text_for_currency)
+                    product_data['currency'] = match.group(1) if match else None
+                else:
+                    product_data['currency'] = None                     # Find the fieldset for the color option
            
-                available_sizes = []
-                unavailable_sizes = []
+                        # 1. Extract color options
+                colors = []
+                color_inputs = soup.select('div.variant-picker__option-values input[type="radio"]')
+                for input_tag in color_inputs:
+                    label = input_tag.find_next_sibling('label')
+                    if label:
+                        color_name_tag = label.select_one('span.sr-only')
+                        if color_name_tag:
+                            colors.append({
+                                "id": input_tag.get('value'),
+                                "name": color_name_tag.text.strip()
+                            })
 
+                # Avoid blank color names
+                colors = [c for c in colors if c['name']]
+
+                # 2. Extract size options and availability
+                sizes = []
                 size_container = soup.select_one('fieldset.variant-picker__option:has(legend:-soup-contains("Size"))')
                 if size_container:
                     size_inputs = size_container.find_all('input', {'type': 'radio'})
@@ -135,31 +129,27 @@ class HushpuppiesScraper(BaseScraper):
                         label = size_container.find('label', {'for': input_tag.get('id')})
                         if label:
                             size_text = label.get_text(strip=True)
-                            if 'is-disabled' in label.get('class', []):
-                                unavailable_sizes.append(size_text)
-                            else:
-                                available_sizes.append(size_text)
+                            is_unavailable = 'is-disabled' in label.get('class', [])
+                            sizes.append({
+                                "name": size_text,
+                                "available": not is_unavailable
+                            })
 
-                product_data['sizes_available'] = available_sizes if available_sizes else None
-                product_data['sizes_unavailable'] = unavailable_sizes if unavailable_sizes else None
+                # 3. Construct variants list (only once per color-size pair)
+                variants = []
+                for color in colors:
+                    for size in sizes:
+                        variants.append({
+                            "color": color['name'],
+                            "size": size['name'],
+                            "availability": "Available" if size['available'] else "Sold Out"
+                        })
 
-            features = soup.select('.product-info__block-item .feature-badge p')
-
-            product_data['installments'] = None
-            product_data['secure_payment'] = None
-            product_data['free_delivery'] = None
-
-            for feature in features:
-                text = feature.get_text(strip=True)
-                if "installment" in text.lower():
-                    product_data['installments'] = text
-                elif "secure" in text.lower():
-                    product_data['secure_payment'] = text
-                elif "delivery" in text.lower():
-                    product_data['free_delivery'] = text
+                # 4. Save in product_data
+                product_data['variants'] = variants
 
 
-          
+           
 
             
 
@@ -176,7 +166,7 @@ class HushpuppiesScraper(BaseScraper):
                 for br in accordion_desc.find_all('br'):
                     br.replace_with('\n')
                 paragraphs = [p.get_text(separator='\n', strip=True).replace('\xa0', ' ') for p in accordion_desc.find_all('p')]
-                product_data['product_description'] = '\n\n'.join(paragraphs)
+                product_data['description'] = '\n\n'.join(paragraphs)
             else:
                 # fallback to your old selector if needed
                 description_div = soup.select_one('div.draw-content')
@@ -184,37 +174,13 @@ class HushpuppiesScraper(BaseScraper):
                     for br in description_div.find_all('br'):
                         br.replace_with('\n')
                     paragraphs = [p.get_text(separator='\n', strip=True).replace('\xa0', ' ') for p in description_div.find_all('p')]
-                    product_data['product_description'] = '\n\n'.join(paragraphs)
+                    product_data['description'] = '\n\n'.join(paragraphs)
 
 
                 accordion_divs = soup.select('div.accordion__content.prose')
                 print(f"Found {len(accordion_divs)} accordion div(s)")
 
-              # Shipment Info: Try multiple known sections
-            shipment_info = []
-
-            # Method 1: From #scDraw
-            drawer_div = soup.select_one('div#scDraw')
-            if drawer_div:
-                shipping_returns_div = drawer_div.select_one('div.draw-content')
-                if shipping_returns_div:
-                    paragraphs = [p.get_text(strip=True).replace('\xa0', ' ') for p in shipping_returns_div.find_all('p')]
-                    shipment_info.extend(paragraphs)
-
-            # Method 2: From accordion-disclosure sections
-            accordion_divs = soup.select('accordion-disclosure div.accordion__content.prose')
-            for div in accordion_divs:
-                for br in div.find_all('br'):
-                    br.replace_with('\n')
-                paragraphs = [p.get_text(separator='\n', strip=True).replace('\xa0', ' ') for p in div.find_all('p')]
-                for paragraph in paragraphs:
-                    if 'shipping' in paragraph.lower() or 'delivery' in paragraph.lower() or 'return' in paragraph.lower():
-                        shipment_info.append(paragraph)
-
-            # Set shipment_info if any found
-            product_data['shipment_info'] = shipment_info if shipment_info else None
-
-
+         
 
             return product_data
 
@@ -266,7 +232,8 @@ class HushpuppiesScraper(BaseScraper):
 
             self.log_info(f"Collected {len(all_product_links)} unique product links.")
             return list(all_product_links)
-     
+
+    
     async def scrape_category(self, url):
         all_products = []
         product_links = await self.scrape_products_links(url)

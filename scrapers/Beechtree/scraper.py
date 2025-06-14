@@ -42,15 +42,14 @@ class Beechtree_Scrapper(BaseScraper):
             soup = BeautifulSoup(response.text, 'html.parser')
 
             product_data = {
-            'product_name': None,
-            'product_title': None,
+            'title': None,
             'original_price': None,
             'sale_price': None,
-            'save_percent': None,
+            'currency':None,
             'images': [],
-            'product_description': None,
+            'description': None,
             'product_link': product_link,
-            'sizes': [],
+            'variants':None
         }
 
             # Product Name
@@ -63,20 +62,15 @@ class Beechtree_Scrapper(BaseScraper):
                     product_name = h1_tag.get_text(strip=True)
 
             if product_name:
-                product_data['product_name'] = product_name
+                product_data['title'] = product_name
 
-            # Product Title / Brand
-            product_title_element = soup.find('div', {'class': 'product-brand'})
-            if product_title_element:
-                product_data['product_title'] = product_title_element.text.strip()
-
+            
             # SKU
             sku_element = soup.select_one('p.product__sku')
             if sku_element:
                 # Remove the visually hidden <span> text if present
                 sku_text = sku_element.get_text(strip=True).replace('SKU:', '').strip()
                 product_data['sku'] = sku_text
-
 
                 # Prices
                 price_wrapper = soup.find('div', class_='price--show-badge')
@@ -103,34 +97,13 @@ class Beechtree_Scrapper(BaseScraper):
                         sale_price_str = None
                         product_data['sale_price'] = None
 
-                    # Helper to parse price string like 'PKR 2,232' to float
-                    def parse_price(price_str):
-                        if not price_str:
-                            return None
-                        return float(price_str.replace('PKR', '').replace(',', '').strip())
-
-                    original_price = parse_price(original_price_str)
-                    sale_price = parse_price(sale_price_str)
-
-                    # Determine save_percent
-                    if original_price is not None and sale_price is not None and sale_price < original_price:
-                        saved_percent = ((original_price - sale_price) / original_price) * 100
-                        product_data['save_percent'] = f"{saved_percent:.0f} % off"
+                    # Extract currency from whichever price is available
+                    if original_price_str and ' ' in original_price_str:
+                        product_data['currency'] = original_price_str.split()[0]
+                    elif sale_price_str and ' ' in sale_price_str:
+                        product_data['currency'] = sale_price_str.split()[0]
                     else:
-                        # Check if discount badge exists
-                        discount_badge = soup.select_one('.bt-sale-badge')
-                        if discount_badge:
-                            percent_text = discount_badge.get_text(strip=True)
-                            if percent_text.startswith('-') and percent_text.endswith('%'):
-                                product_data['save_percent'] = percent_text.replace('-', '') + " off"
-                            else:
-                                product_data['save_percent'] = None
-                        else:
-                            product_data['save_percent'] = None
-
-                        # If no valid sale, force sale_price to None
-                        product_data['sale_price'] = None
-
+                        product_data['currency'] = None
 
                     # Find the container with image slides
             media_wrapper = soup.find('div', class_='new_product_media_inner')
@@ -161,29 +134,35 @@ class Beechtree_Scrapper(BaseScraper):
 
                 # Combine all text parts
                 description_parts = list_items + paragraphs
-                product_data['product_description'] = '\n'.join(description_parts)
+                product_data['description'] = '\n'.join(description_parts)
+                
+                                
+                variants = []
 
-            all_sizes = []
-            visible_sizes = []
+                # Container holding size options
+                size_container = soup.select_one('div.new_options_container')
 
-            # Find the fieldset for sizes
-            size_fieldset = soup.select_one('fieldset.product-form__input--pill.size')
+                if size_container:
+                    size_inputs = size_container.find_all('input', {'type': 'radio'})
 
-            if size_fieldset:
-                # Find all <input type="radio"> inside that fieldset
-                size_inputs = size_fieldset.find_all('input', {'type': 'radio'})
-                for input_tag in size_inputs:
-                    size_value = input_tag.get('value')
-                    if size_value:
-                        all_sizes.append(size_value)
-                        
-                        # Check if input is NOT disabled attribute
-                        if not input_tag.has_attr('disabled'):
-                            visible_sizes.append(size_value)
+                    for input_tag in size_inputs:
+                        size_value = input_tag.get('value')
+                        if not size_value:
+                            continue
 
-            product_data['all_sizes'] = all_sizes or None
-            product_data['visible_sizes'] = visible_sizes or None
+                        # Check if input has class 'disabled'
+                        input_classes = input_tag.get('class', [])
+                        is_disabled = 'disabled' in input_classes
+                        availability = 'Unavailable' if is_disabled else 'Available'
 
+                        # Add to variants list
+                        variants.append({
+                            "size": size_value,
+                            "availability": availability
+                        })
+
+                # Store in product_data
+                product_data['variants'] = variants or None
 
             return product_data
 
@@ -195,55 +174,50 @@ class Beechtree_Scrapper(BaseScraper):
 
     async def scrape_products_links(self, url):
         all_product_links = []
-        page_number = 1
 
         # Strip URL fragment (like #Pret)
         split_url = urlsplit(url)
         url = urlunsplit((split_url.scheme, split_url.netloc, split_url.path, split_url.query, ''))
-        current_url = url
 
-        while True:
-            try:
-                self.log_info(f"Scraping page {page_number}: {current_url}")
-                response = requests.get(current_url, headers=self.headers, timeout=10)
-                response.raise_for_status()
+        try:
+            self.log_info(f"Scraping page 1: {url}")
+            response = requests.get(url, headers=self.headers, timeout=10)
+            response.raise_for_status()
 
-                soup = BeautifulSoup(response.text, 'html.parser')
+            soup = BeautifulSoup(response.text, 'html.parser')
 
-                # Select anchors linking to products via div.card_carousel
-                product_anchors = soup.select('a[href^="/products/"] > div.card_carousel')
+            # Select anchors linking to products via div.card_carousel
+            product_anchors = soup.select('a[href^="/products/"] > div.card_carousel')
 
-                if not product_anchors:
-                    self.log_info(f"No product links found on page {page_number}. Stopping.")
-                    break
+            if not product_anchors:
+                self.log_info("No product links found on the first page.")
+                return []
 
-                for carousel_div in product_anchors:
-                    parent_anchor = carousel_div.find_parent('a', href=True)
-                    if parent_anchor:
-                        product_url = urljoin(self.base_url, parent_anchor['href'])
-                        if product_url not in all_product_links:
-                            all_product_links.append(product_url)
+            for carousel_div in product_anchors:
+                parent_anchor = carousel_div.find_parent('a', href=True)
+                if parent_anchor:
+                    product_url = urljoin(self.base_url, parent_anchor['href'])
+                    if product_url not in all_product_links:
+                        all_product_links.append(product_url)
 
-                page_number += 1
-                current_url = f"{url}?page={page_number}" if "?" not in url else f"{url}&page={page_number}"
+        except Exception as e:
+            self.log_error(f"Error scraping page: {e}")
 
-            except Exception as e:
-                self.log_error(f"Error scraping page {page_number}: {e}")
-                break
-
-        self.log_info(f"Collected {len(all_product_links)} unique product links.")
+        self.log_info(f"Collected {len(all_product_links)} product link(s).")
         return all_product_links
+
+
     async def scrape_category(self, url):
-        all_products = []
-        product_links = await self.scrape_products_links(url)
+            all_products = []
+            product_links = await self.scrape_products_links(url)
 
-        for product_link in product_links:
-            pdp_data = await self.scrape_pdp(product_link)
-            if pdp_data and not pdp_data.get('error'):
-                all_products.append(pdp_data)
-            await asyncio.sleep(1)
+            for product_link in product_links:
+                pdp_data = await self.scrape_pdp(product_link)
+                if pdp_data and not pdp_data.get('error'):
+                    all_products.append(pdp_data)
+                await asyncio.sleep(1)
 
-        return all_products
+            return all_products
 
     async def scrape_data(self):
         final_data = []

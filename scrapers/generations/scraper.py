@@ -8,7 +8,6 @@ from bs4 import BeautifulSoup
 from typing import List, Dict
 import requests
 from requests.adapters import HTTPAdapter
-
 from urllib3 import Retry
 from interfaces.base_scraper import BaseScraper
 from datetime import datetime
@@ -59,15 +58,14 @@ class GenerationScraper(BaseScraper):
             'product_name': None,
             'original_price': None,
             'sale_price': None,
+            'currency':None,
             'images': [],
-            'product_description': None,
-            'care_instructions': None,  
+            'description': None,
+            'care_instructions': None,
             'product_link': product_link,
-            'available_sizes': [],      # Stores available sizes
-            'unavailable_sizes': [],    # Stores unavailable sizes
-            'available_colors': [],     # Stores available colors
-            'unavailable_colors': [],   # Stores unavailable colors
+            'variants': [],  # New: Store all size/color availability info here
         }
+
 
 
              # Product Name
@@ -86,88 +84,106 @@ class GenerationScraper(BaseScraper):
             sku_element = soup.select_one('span.variant-sku')
             if sku_element:
                 product_data['sku'] = sku_element.get_text(strip=True)
+           
             price_wrapper = soup.find('div', class_='ProductMeta__PriceList')
             if price_wrapper:
                 # Try to find sale price first
                 sale_price_tag = price_wrapper.find('span', class_='Price--highlight')
                 original_price_tag = price_wrapper.find('span', class_='Price--compareAt')
                 
+                # Initialize currency
+                currency = None
+
                 if sale_price_tag and original_price_tag:
-                    # Both sale and original present
+                    # Both sale and original prices are present
                     sale_price_str = sale_price_tag.get_text(strip=True)
                     original_price_str = original_price_tag.get_text(strip=True)
                     product_data['sale_price'] = sale_price_str
                     product_data['original_price'] = original_price_str
                 elif sale_price_tag and not original_price_tag:
-                    # Sale price but no original price (rare but possible)
+                    # Sale price but no original price
                     sale_price_str = sale_price_tag.get_text(strip=True)
                     product_data['sale_price'] = sale_price_str
                     product_data['original_price'] = None
                 else:
-                    # No sale price, so look for a single price shown as original price or regular price
+                    # Look for a single price (regular price)
                     single_price_tag = price_wrapper.find('span', class_='Price') or price_wrapper.find('span', class_='Price--regular')
                     if single_price_tag:
                         price_str = single_price_tag.get_text(strip=True)
                         product_data['original_price'] = price_str
                         product_data['sale_price'] = None
                     else:
-                        # No price found at all
                         product_data['original_price'] = None
                         product_data['sale_price'] = None
+
+                # Extract currency
+                # Look for any price tag we found and use regex to extract currency
+                price_text = None
+                if sale_price_tag:
+                    price_text = sale_price_tag.get_text(strip=True)
+                elif original_price_tag:
+                    price_text = original_price_tag.get_text(strip=True)
+                elif single_price_tag:
+                    price_text = single_price_tag.get_text(strip=True)
+                
+                if price_text:
+                    import re
+                    # Match any leading non-numeric characters (like "PKR", "$", etc.)
+                    match = re.match(r'([^\d\s]+)', price_text)
+                    if match:
+                        currency = match.group(1)
+                product_data['currency'] = currency
             else:
                 product_data['original_price'] = None
                 product_data['sale_price'] = None
+                product_data['currency'] = None
 
 
             
              
-            available_sizes = []
-            unavailable_sizes = []
+            variants = []
 
             try:
+                # Extract color buttons
+                color_buttons = soup.select('div.Popover__Content div.Popover__ValueList button.Popover__Value_color')
+                colors = []
+                for button in color_buttons:
+                    color_value = button.get('data-value', '').strip()
+                    if color_value:
+                        class_list = button.get('class', [])
+                        availability = 'available' if 'hide_variant' not in class_list else 'unavailable'
+                        colors.append({'color': color_value, 'availability': availability})
+            except Exception as e:
+                self.log_error(f"Error extracting colors: {e}")
+
+            try:
+                # Extract size buttons
                 size_buttons = soup.select('div.Popover__ValueList button.Popover__Value_size')
+                sizes = []
                 for button in size_buttons:
-                    size_value = button.get('data-value')
+                    size_value = button.get('data-value', '').strip()
                     if size_value:
                         class_list = button.get('class', [])
-                        available = 'hide_variant' not in class_list
-                        if available:
-                            available_sizes.append(size_value)
-                        else:
-                            unavailable_sizes.append(size_value)
-
+                        availability = 'available' if 'hide_variant' not in class_list else 'unavailable'
+                        sizes.append({'size': size_value, 'availability': availability})
             except Exception as e:
                 self.log_error(f"Error extracting sizes: {e}")
 
-            # Save separately in product_data
-            product_data['available_sizes'] = available_sizes
-            product_data['unavailable_sizes'] = unavailable_sizes
+            # Combine each color with each size
+            for color in colors:
+                for size in sizes:
+                    combined_availability = (
+                        'unavailable'
+                        if color['availability'] == 'unavailable' or size['availability'] == 'unavailable'
+                        else 'available'
+                    )
+                    variants.append({
+                        'size': size['size'],
+                        'color': color['color'],
+                        'availability': combined_availability
+                    })
 
-
-
-          # Extract color buttons (updated class name to match your snippet)
-            color_buttons = soup.select('div.Popover__ValueList button.Popover__Value_color')
-
-            available_colors = []
-            unavailable_colors = []
-
-            for btn in color_buttons:
-                color_name = btn.get('data-value', '').strip()
-                if not color_name:
-                    continue  # skip if no color name
-                
-                classes = btn.get('class', [])
-                if 'hide_variant' in classes:
-                    unavailable_colors.append(color_name)
-                else:
-                    available_colors.append(color_name)
-
-            # Save to product_data dict
-            product_data['available_colors'] = available_colors
-            product_data['unavailable_colors'] = unavailable_colors
-
-
-
+            product_data['variants'] = variants
 
                 
             # Extract product images from <img> tags using data-original-src
@@ -205,7 +221,7 @@ class GenerationScraper(BaseScraper):
                     else:
                         product_description_text += text + "\n"
 
-                product_data['product_description'] = product_description_text.strip()
+                product_data['description'] = product_description_text.strip()
                 product_data['care_instructions'] = care_instructions.strip()  # ✅ Moved to top level
 
                

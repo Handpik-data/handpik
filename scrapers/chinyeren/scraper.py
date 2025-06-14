@@ -40,28 +40,28 @@ class chinyerescraper(BaseScraper):
             soup = BeautifulSoup(response.text, 'html.parser')
 
             product_data = {
-                'product_name': None,
-                'product_title': None,
-                'sku': None,
-                'original_price': None,
-                'sale_price': None,
-                'save_percent': None,
-                'images': [],
-                'product_description': None,
-                'breadcrumbs': [],
-                'product_link': product_link,
-                'sizes': [],
+            'title': None,
+            'sku': None,
+            'original price': None,
+            'sale price': None,
+            'currency': None,
+            'save_percent': None,
+            'images': [],
+            'description': None,
+            'product_link': product_link,
+            'variants': {
+                'sizes': [],          
+                'all_sizes': [],      
+                'visible_sizes': [],  
+                'color': None         
             }
+        }
 
             # Product Name
             title_tag = soup.select_one('h1.productView-title')
             if title_tag:
-                product_data['product_name'] = title_tag.get_text(strip=True)
+                product_data['title'] = title_tag.get_text(strip=True)
 
-            # Product Title / Brand
-            product_title_element = soup.find('div', {'class': 'product-brand'})
-            if product_title_element:
-                product_data['product_title'] = product_title_element.text.strip()
 
             # SKU
             sku_element = soup.select_one('div.productView-info-item span.productView-info-value')
@@ -70,24 +70,39 @@ class chinyerescraper(BaseScraper):
 
 
             # Prices
-            # Prices
             price_div = soup.find('div', class_='price')
             if price_div:
+                currency_symbol = None
+
                 # Try to find sale price (discounted price)
                 sale_last_dd = price_div.select_one('div.price__sale dd.price__last span.money')
                 if sale_last_dd:
-                    product_data['sale_price'] = sale_last_dd.get_text(strip=True)
+                    sale_text = sale_last_dd.get_text(strip=True)
+                    # Extract numeric price
+                    product_data['sale_price'] = ''.join(filter(lambda x: x.isdigit() or x == '.', sale_text))
+                    # Extract currency
+                    currency_symbol = ''.join(filter(lambda x: not x.isdigit() and x != '.', sale_text)).strip()
 
                 # Try to find original (compare) price
                 compare_dd = price_div.select_one('div.price__sale dd.price__compare span.money')
                 if compare_dd:
-                    product_data['original_price'] = compare_dd.get_text(strip=True)
+                    compare_text = compare_dd.get_text(strip=True)
+                    product_data['original price'] = ''.join(filter(lambda x: x.isdigit() or x == '.', compare_text))
+                    # If no currency detected yet, get it from here
+                    if not currency_symbol:
+                        currency_symbol = ''.join(filter(lambda x: not x.isdigit() and x != '.', compare_text)).strip()
 
                 # If no sale section exists, fallback to regular price
-                if 'sale_price' not in product_data:
+                if 'sale price' not in product_data or product_data['sale price'] is None:
                     regular_dd = price_div.select_one('div.price__regular dd.price__last span.money')
                     if regular_dd:
-                        product_data['original_price'] = regular_dd.get_text(strip=True)
+                        regular_text = regular_dd.get_text(strip=True)
+                        product_data['original price'] = ''.join(filter(lambda x: x.isdigit() or x == '.', regular_text))
+                        if not currency_symbol:
+                            currency_symbol = ''.join(filter(lambda x: not x.isdigit() and x != '.', regular_text)).strip()
+
+                # Save the currency symbol to the product data dictionary
+                product_data['currency'] = currency_symbol
 
             # Color and SKU from style-id section
             style_id_div = soup.select_one('div.new-product-style-id.mobile-hide')
@@ -129,11 +144,12 @@ class chinyerescraper(BaseScraper):
                 paragraphs = [p.get_text(separator='\n', strip=True).replace('\xa0', ' ') for p in description_div.find_all('p')]
 
                 # Join paragraphs into a single string with double newlines
-                product_data['product_description'] = '\n\n'.join(paragraphs)
+                product_data['description'] = '\n\n'.join(paragraphs)
             else:
-                product_data['product_description'] = None
+                product_data['description'] = None
 
-             # Sizes
+
+                    # Initialize lists
             all_sizes = []
             visible_sizes = []
 
@@ -146,25 +162,41 @@ class chinyerescraper(BaseScraper):
                     size_text = label.find('span', class_='text')
                     if size_text:
                         size_value = size_text.get_text(strip=True)
-                        all_sizes.append(size_value)
-                        visible_sizes.append(size_value)  # all listed sizes are visible in this structure
+                        # Check availability based on label class
+                        available = 'soldout' not in label.get('class', [])
+                        all_sizes.append({'size': size_value, 'color': None, 'available': available})
+                        visible_sizes.append({'size': size_value, 'color': None, 'available': available})
 
-            product_data['all_sizes'] = all_sizes or None
-            product_data['visible_sizes'] = visible_sizes or None
+            # Extract color
+            color = None
+            tab_popup = soup.find('div', class_='tab-popup-content')
+            if tab_popup:
+                match = re.search(r'Color:\s*([^\s<]+)', tab_popup.get_text())
+                if match:
+                    color = match.group(1).strip()
 
-            # Initialize breadcrumbs list if not already present
-            if 'breadcrumbs' not in product_data:
-                product_data['breadcrumbs'] = []
+            # Update color in sizes
+            for size in all_sizes:
+                size['color'] = color
+            for size in visible_sizes:
+                size['color'] = color
 
-            # Select all <a> and <span> elements inside <nav class="breadcrumb breadcrumb-left">
-            breadcrumb_nav = soup.select_one('breadcrumb-component nav.breadcrumb.breadcrumb-left')
+            # Create variants from sizes
+            variants = []
+            for size in all_sizes:
+                variants.append({
+                    'size': size['size'],
+                    'color': size['color'],
+                    'availability': size['available']
+                })
 
-            if breadcrumb_nav:
-                breadcrumb_items = breadcrumb_nav.select('a, span')
-                for crumb in breadcrumb_items:
-                    text = crumb.get_text(strip=True)
-                    if text:
-                        product_data['breadcrumbs'].append(text)
+            # Add sizes and color to product_data
+            product_data['color'] = color or None
+        
+        
+            product_data['variants'] = variants or None
+
+          
 
 
             return product_data
@@ -186,36 +218,33 @@ class chinyerescraper(BaseScraper):
                 response.raise_for_status()
                 soup = BeautifulSoup(response.text, 'html.parser')
 
-                # Select all <a> tags with class 'card-link' and href starting with '/products/'
-                link_tags = soup.select('a.card-link[href^="/products/"]')
+                # Select the first <a> tag with class 'card-link' and href starting with '/products/'
+                link_tag = soup.select_one('a.card-link[href^="/products/"]')
 
-                if not link_tags:
-                    self.log_info(f"No product links found on page {page_number}. Stopping.")
+                if not link_tag:
+                    self.log_info(f"No product link found on page {page_number}. Stopping.")
                     break
 
-                initial_count = len(all_product_links)
+                href = link_tag['href']
+                product_url = f"{self.base_url}{href}" if href.startswith('/') else href
+                all_product_links.add(product_url)
 
-                for link_tag in link_tags:
-                    href = link_tag['href']
-                    product_url = f"{self.base_url}{href}" if href.startswith('/') else href
-                    all_product_links.add(product_url)
-
-                if len(all_product_links) == initial_count:
-                    self.log_info("No new products found. Stopping.")
-                    break
-
-                page_number += 1
-                if "?" not in url:
-                    current_url = f"{url}?page={page_number}"
-                else:
-                    current_url = f"{url}&page={page_number}"
+                # Since we only want the first link, break immediately
+                break
 
             except Exception as e:
                 self.log_error(f"Error scraping page {page_number}: {e}")
                 break
 
-        self.log_info(f"Collected {len(all_product_links)} unique product links.")
+            page_number += 1
+            if "?" not in url:
+                current_url = f"{url}?page={page_number}"
+            else:
+                current_url = f"{url}&page={page_number}"
+
+        self.log_info(f"Collected {len(all_product_links)} product link(s).")
         return list(all_product_links)
+
 
     async def scrape_category(self, url):
         all_products = []

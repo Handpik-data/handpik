@@ -47,24 +47,22 @@ class AmirAdnan_Scrapper(BaseScraper):
             soup = BeautifulSoup(html, 'html.parser')
 
             product_data = {
-                'product_name': None,
+                'title': None,
                 'original_price': None,
                 'sale_price': None,
                 'save_percent': None,
                 'images': [],
-                'product_description': None,
+                'description': None,
                 'product_link': product_link,
                 'sku': None,
-                'all_sizes': None,
-                'delivery_info': None,
-                'shipping_charges': None,
-                'taxes_and_duties': None,
+                'variants': None,
+              
             }
 
             # Product Name
             h1_tag = soup.select_one('h1.product-title span')
             if h1_tag:
-                product_data['product_name'] = h1_tag.get_text(strip=True)
+                product_data['title'] = h1_tag.get_text(strip=True)
 
             # SKU
             sku_element = soup.select_one('div.sku-product span')
@@ -80,32 +78,30 @@ class AmirAdnan_Scrapper(BaseScraper):
                     tag.get_text(separator='\n', strip=True).replace('\xa0', ' ')
                     for tag in description_div.find_all(['p', 'span'])
                 ]
-                product_data['product_description'] = '\n'.join(paragraphs)
+                product_data['description'] = '\n'.join(paragraphs)
 
-            # Shipping Charges
-            shipping_div = soup.select_one('div#collapse-tab2')
-            if shipping_div:
-                shipping_texts = [h5.get_text(strip=True) for h5 in shipping_div.find_all('h5')]
-                product_data['shipping_charges'] = '\n'.join(shipping_texts)
+ 
 
-            # Delivery Information
-            delivery_div = soup.select_one('div#collapse-tab3')
-            if delivery_div:
-                delivery_texts = [h5.get_text(strip=True) for h5 in delivery_div.find_all('h5')]
-                product_data['delivery_info'] = '\n'.join(delivery_texts)
+                        # Sizes
+                swatch_container = soup.select_one('div.swatch[data-option-index="0"]')
+                if swatch_container:
+                    size_divs = swatch_container.select('div.swatch-element')
+                    
+                    sizes_with_status = []
+                    
+                    for size_div in size_divs:
+                        size = size_div.get('data-value')
+                        class_list = size_div.get('class', [])
 
-            # Taxes & Duties
-            taxes_div = soup.select_one('div#collapse-tab4')
-            if taxes_div:
-                taxes_texts = [h5.get_text(strip=True) for h5 in taxes_div.find_all('h5')]
-                product_data['taxes_and_duties'] = '\n'.join(taxes_texts)
+                        # Check if 'soldout' is in the class list
+                        is_available = 'soldout' not in class_list
 
-            # Sizes
-            swatch_container = soup.select_one('div.swatch[data-option-index="0"]')
-            if swatch_container:
-                size_divs = swatch_container.select('div.swatch-element')
-                all_sizes = [size_div.get('data-value') for size_div in size_divs if size_div.get('data-value')]
-                product_data['all_sizes'] = all_sizes if all_sizes else None
+                        sizes_with_status.append({
+                            'size': size,
+                            'available': is_available
+                        })
+                    
+                    product_data['variants'] = sizes_with_status if sizes_with_status else None
 
             # Prices
             prices_div = soup.find('div', class_='prices')
@@ -143,42 +139,42 @@ class AmirAdnan_Scrapper(BaseScraper):
             return {'error': str(e), 'product_link': product_link}
         
     async def scrape_products_links(self, url):
-            all_product_links = []
-            page_number = 1
+                all_product_links = []
+                page_number = 1
 
-            # Strip URL fragment (like #Pret)
-            split_url = urlsplit(url)
-            url = urlunsplit((split_url.scheme, split_url.netloc, split_url.path, split_url.query, ''))
-            current_url = url
+                # Strip URL fragment (like #Pret)
+                split_url = urlsplit(url)
+                url = urlunsplit((split_url.scheme, split_url.netloc, split_url.path, split_url.query, ''))
+                current_url = url
 
-            while True:
-                try:
-                    self.log_info(f"Scraping page {page_number}: {current_url}")
-                    response = requests.get(current_url, headers=self.headers, timeout=10)
-                    response.raise_for_status()
+                while True:
+                    try:
+                        self.log_info(f"Scraping page {page_number}: {current_url}")
+                        response = requests.get(current_url, headers=self.headers, timeout=10)
+                        response.raise_for_status()
 
-                    soup = BeautifulSoup(response.text, 'html.parser')
+                        soup = BeautifulSoup(response.text, 'html.parser')
 
-                    product_anchors = soup.select('a[href^="/collections/"][href*="/products/"]')
+                        product_anchors = soup.select('a[href^="/collections/"][href*="/products/"]')
 
-                    if not product_anchors:
-                        self.log_info(f"No product links found on page {page_number}. Stopping.")
+                        if not product_anchors:
+                            self.log_info(f"No product links found on page {page_number}. Stopping.")
+                            break
+
+                        for anchor in product_anchors:
+                            product_url = urljoin(self.base_url, anchor['href'])
+                            if product_url not in all_product_links:
+                                all_product_links.append(product_url)
+
+                        page_number += 1
+                        current_url = f"{url}?page={page_number}" if "?" not in url else f"{url}&page={page_number}"
+
+                    except Exception as e:
+                        self.log_error(f"Error scraping page {page_number}: {e}")
                         break
 
-                    for anchor in product_anchors:
-                        product_url = urljoin(self.base_url, anchor['href'])
-                        if product_url not in all_product_links:
-                            all_product_links.append(product_url)
-
-                    page_number += 1
-                    current_url = f"{url}?page={page_number}" if "?" not in url else f"{url}&page={page_number}"
-
-                except Exception as e:
-                    self.log_error(f"Error scraping page {page_number}: {e}")
-                    break
-
-            self.log_info(f"Collected {len(all_product_links)} unique product links.")
-            return all_product_links
+                self.log_info(f"Collected {len(all_product_links)} unique product links.")
+                return all_product_links  
 
     async def scrape_category(self, url):
         all_products = []

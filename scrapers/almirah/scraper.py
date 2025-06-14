@@ -2,6 +2,7 @@ import os
 import re
 import json
 import asyncio
+import re
 import aiohttp
 import requests
 from bs4 import BeautifulSoup
@@ -13,7 +14,7 @@ from urllib.parse import urljoin
 import time
 
 
-class ALMIRAHSCRAPPER(BaseScraper):
+class AlkaramScraper(BaseScraper):
     def __init__(self):
         super().__init__(
             base_url="https://almirah.com.pk/pages/men",
@@ -40,18 +41,16 @@ class ALMIRAHSCRAPPER(BaseScraper):
             soup = BeautifulSoup(response.text, 'html.parser')
 
             product_data = {
-            'product_name': None,
+            'title': None,
             'product_title': None,
             'original_price': None,
             'sale_price': None,
-            'save_percent': None,
+            'currency':None,
             'images': [],
             'description': {},
-            'additional_info': None,   
-            'product_description': None,
+            'attributes': None,   
             'product_link': product_link,
             'variants': [],
-            'sizes': [],
         }
 
             # Product Name
@@ -70,7 +69,7 @@ class ALMIRAHSCRAPPER(BaseScraper):
                         product_name = h2_tag.get_text(strip=True)
 
             if product_name:
-                product_data['product_name'] = product_name
+                product_data['title'] = product_name
 
 
             # Product Title / Brand
@@ -83,7 +82,7 @@ class ALMIRAHSCRAPPER(BaseScraper):
             if sku_element:
                 product_data['sku'] = sku_element.get_text(strip=True)
 
-            # Prices
+                        # Prices
             price_wrapper = soup.find('div', class_='price--show-badge')
             if price_wrapper:
                 # Regular price (struck-through or regular)
@@ -103,11 +102,27 @@ class ALMIRAHSCRAPPER(BaseScraper):
                     sale_price_str = None
                     product_data['sale_price'] = None
 
+                # Extract currency symbol from the first available price
+                sample_price = original_price_str or sale_price_str
+                if sample_price:
+                    match = re.match(r'^(\D+)', sample_price)
+                    currency_symbol = match.group(1).strip() if match else None
+                    product_data['currency'] = currency_symbol  # ✅ Save currency in dictionary
+                else:
+                    product_data['currency'] = None
+
                 # Helper to parse price string like 'Rs.6,450.00' to float
                 def parse_price(price_str):
                     if not price_str:
                         return None
-                    return float(price_str.replace('Rs.', '').replace(',', '').strip())
+                    # Remove non-digit and non-dot characters
+                    cleaned = re.sub(r'[^\d.]', '', price_str)
+                    parts = cleaned.split('.')
+                    if len(parts) > 2:
+                        # Join everything after the first dot as decimal part
+                        cleaned = parts[0] + '.' + ''.join(parts[1:])
+                    return float(cleaned)
+
 
                 original_price = parse_price(original_price_str)
                 sale_price = parse_price(sale_price_str)
@@ -120,9 +135,9 @@ class ALMIRAHSCRAPPER(BaseScraper):
                 else:
                     # No discount
                     product_data['save_percent'] = None
-                    # If no sale, keep sale_price None or same as original_price (optional)
                     if sale_price is None or sale_price >= original_price:
                         product_data['sale_price'] = None
+
 
             additional_info = {}
 
@@ -143,13 +158,14 @@ class ALMIRAHSCRAPPER(BaseScraper):
                             additional_info[key] = value
 
             # Save it to your product_data dict
-            product_data['additional_info'] = additional_info
+            product_data['attributes'] = additional_info
 
-            thumbnail_buttons = soup.find_all('button', class_='thumbnail')
+                    # Find the media gallery
+            media_gallery = soup.find('media-gallery')
 
-            for button in thumbnail_buttons:
-                img = button.find('img')
-                if img:
+            if media_gallery:
+                image_tags = media_gallery.find_all('img')
+                for img in image_tags:
                     src = img.get('src')
                     if src:
                         # Fix protocol-relative URLs starting with //
@@ -159,6 +175,8 @@ class ALMIRAHSCRAPPER(BaseScraper):
                         full_url = urljoin(self.base_url, src)
                         if full_url not in product_data['images']:
                             product_data['images'].append(full_url)
+
+
              # Installment Info
             installment_info = soup.find('div', class_='installment-info')
             if installment_info:
@@ -214,7 +232,7 @@ class ALMIRAHSCRAPPER(BaseScraper):
             short_desc_div = soup.select_one('div.new-product-short-description .metafield-rich_text_field')
             if short_desc_div:
                 paragraphs = [p.get_text(strip=True).replace('\xa0', ' ') for p in short_desc_div.find_all('p')]
-                product_data['additional_info'] = ' '.join(paragraphs)
+                product_data['attributes'] = ' '.join(paragraphs)
 
             # Product Description
             description_div = soup.select_one('div.accordion__content.rte')
@@ -222,28 +240,42 @@ class ALMIRAHSCRAPPER(BaseScraper):
                 for br in description_div.find_all('br'):
                     br.replace_with('\n')
                 paragraphs = [p.get_text(separator='\n', strip=True).replace('\xa0', ' ') for p in description_div.find_all('p')]
-                product_data['product_description'] = '\n\n'.join(paragraphs)
+                product_data['description'] = '\n\n'.join(paragraphs)
 
-            all_sizes = []
-            visible_sizes = []
 
-            # Find the fieldset for sizes
-            size_fieldset = soup.select_one('fieldset.product-form__input--pill.size')
+                # Initialize empty list for variants
+                variants = []
 
-            if size_fieldset:
-                # Find all <input type="radio"> inside that fieldset
-                size_inputs = size_fieldset.find_all('input', {'type': 'radio'})
-                for input_tag in size_inputs:
-                    size_value = input_tag.get('value')
-                    if size_value:
-                        all_sizes.append(size_value)
-                        
-                        # If the input is NOT disabled, consider it visible/selectable
-                        if 'disabled' not in input_tag.get('class', []):
-                            visible_sizes.append(size_value)
+                # Extract color from the product info table
+                color = None
+                info_section = soup.select_one('div.accordion__content.additional-info.rte')
 
-            product_data['all_sizes'] = all_sizes or None
-            product_data['visible_sizes'] = visible_sizes or None
+                if info_section:
+                    rows = info_section.select('tr')
+                    for row in rows:
+                        cells = row.find_all('td')
+                        if len(cells) >= 2 and cells[0].text.strip().lower() == 'color':
+                            color = cells[1].get_text(strip=True)
+                            break
+
+                # Now extract sizes and map them with color + availability
+                size_fieldset = soup.select_one('fieldset.product-form__input--pill.size')
+
+                if size_fieldset and color:
+                    size_inputs = size_fieldset.find_all('input', {'type': 'radio'})
+                    for input_tag in size_inputs:
+                        size_value = input_tag.get('value')
+                        if size_value:
+                            is_disabled = 'disabled' in input_tag.attrs or 'disabled' in input_tag.get('class', [])
+                            availability = "Sold Out" if is_disabled else "Available"
+                            variants.append({
+                                "color": color,
+                                "size": size_value,
+                                "availability": availability
+                            })
+
+                # Save variants into product data
+                product_data['variants'] = variants or None
 
 
             return product_data
