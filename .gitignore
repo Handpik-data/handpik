@@ -3,4 +3,5 @@ __pycache__/
 venv/
 logs/*.log*
 scrapers/*/*.json
+jsondata/*.json
 *.lock

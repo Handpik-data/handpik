@@ -56,12 +56,11 @@ class ShafferScraper(BaseScraper):
         }
 
         try:
-            response = self.make_request(
+            response = await self.make_request(
                 product_link,
-                verify=False,
                 headers=self.headers
             )
-            soup = BeautifulSoup(response.text, "html.parser")
+            soup = BeautifulSoup(response, "html.parser")
 
             try:
                 h1_tag = soup.find("h1", class_="main-product__title")
@@ -150,13 +149,12 @@ class ShafferScraper(BaseScraper):
         while True:
             try:
                 self.log_info(f"Scraping page {page_number}: {current_url}")
-                response = self.make_request(
+                response = await self.make_request(
                     current_url,
-                    verify=False,
                     headers=self.headers
                 )
                 
-                soup = BeautifulSoup(response.text, 'html.parser')
+                soup = BeautifulSoup(response, 'html.parser')
                 main_div = soup.find('ul', class_='product-grid')
 
                 if main_div:
@@ -188,30 +186,29 @@ class ShafferScraper(BaseScraper):
             pdp_data = await self.scrape_pdp(product_link)
             if pdp_data is not None:
                 all_products.append(pdp_data)
+                break
         
         return all_products
     
     async def scrape_data(self):
         final_data = []
         try:
-            category_urls = await self.get_unique_urls_from_file(os.path.join(self.module_dir, "categories.txt"))
+            category_urls = await self.get_unique_urls_from_file(
+                os.path.join(self.module_dir, "categories.txt")
+            )
             for url in category_urls:
                 products = await self.scrape_category(url)
                 final_data.extend(products)
+                break
                 
             if final_data:
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-                output_file = f"{self.store_name}_{timestamp}.json"
-                output_path = os.path.join(self.module_dir, output_file)
-                with open(output_path, "w", encoding="utf-8") as f:
-                    json.dump(final_data, f, indent=4, ensure_ascii=False)
-                
-                self.log_info(f"Total {len(category_urls)} categories")
-                self.log_info(f"Saved {len(final_data)} products into {self.store_name}_{timestamp}.json")
-                self.log_info(f"Product Sample Data: {json.dumps(final_data[0], separators=(',', ':'))}")
-
+                saved_path = self.save_data(final_data)
+                if saved_path:
+                    self.log_info(f"Total {len(category_urls)} categories")
+                    self.log_info(f"Saved {len(final_data)} products to {saved_path}")
+                    self.log_info(f"Product Sample Data: {json.dumps(final_data[0], separators=(',', ':'))}")
             else:
                 self.log_error("No data scraped")
                         
         except Exception as e:
-            self.log_error(f"Error: {e}")    
+            self.log_error(f"Scraping failed: {str(e)}")
