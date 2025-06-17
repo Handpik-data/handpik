@@ -279,7 +279,7 @@ class SheepOfficialScraper(BaseScraper):
                 products = await self.scrape_category(url)
                 final_data.extend(products)
             if final_data:
-                saved_path = self.save_data(final_data)
+                saved_path = await self.save_data(final_data)
                 if saved_path:
                     self.log_info(f"Total {len(category_urls)} categories")
                     self.log_info(f"Saved {len(final_data)} products to {saved_path}")
