@@ -6,6 +6,11 @@ import logging
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
+import asyncio
+import os
+import json
+import shutil
+from datetime import datetime
 
 class BaseScraper(ABC):
     def __init__(self, base_url, logger_name, proxies=None, request_delay=0.1, max_retries=5):
@@ -39,8 +44,8 @@ class BaseScraper(ABC):
         
         adapter = HTTPAdapter(
             max_retries=retry_strategy,
-            pool_connections=100,
-            pool_maxsize=100
+            pool_connections=5,
+            pool_maxsize=5
         )
         
         session.mount('https://', adapter)
@@ -62,32 +67,50 @@ class BaseScraper(ABC):
     def _get_random_proxy(self):
         return random.choice(self.proxies) if self.proxies else None
 
-    def _throttle_request(self):
-        time.sleep(self.request_delay * (0.8 + 0.4 * random.random()))
+    def _throttle_request(self, url, attempt):
+        time_delay = self.request_delay * (0.8 + 0.4 * random.random())
+        self.log_info(f"Attempt {attempt+1} for url {url} throttle request time {time_delay}")
+        time.sleep(time_delay)
 
-    def make_request(self, url, method='GET', **kwargs):
-        self._throttle_request()
+    def make_request(self, url, method='GET'):
         
-        headers = kwargs.pop('headers', {})
-        headers['User-Agent'] = self._get_random_user_agent()
-        proxies = {'https': self._get_random_proxy(), 'http': self._get_random_proxy()} if self.proxies else None
-        
-        try:
-            response = self.session.request(
-                method,
-                url,
-                headers=headers,
-                proxies=proxies,
-                timeout=(20, 40),  
-                **kwargs
-            )
-            response.raise_for_status()
-            return response
-            
-        except requests.exceptions.RequestException as e:
-            status_code = e.response.status_code if hasattr(e, 'response') else 'N/A'
-            self.log_error(f"Request failed: {method} {url} | Status: {status_code} | Error: {str(e)}")
-            raise
+        max_attempts = self.max_retries
+        attempt = 0
+
+        while attempt < max_attempts:
+            self.log_info(f"Attempt {attempt+1} for url {url}")
+            self._throttle_request(url,attempt)
+            headers = self.headers
+            headers['User-Agent'] = self._get_random_user_agent()
+            self.log_info(f"Attempt {attempt + 1} of {max_attempts} - Requesting URL: {url}")
+
+            try:
+                response = self.session.request(
+                    method,
+                    url,
+                    headers=headers,
+                    timeout=(20, 40), 
+                    verify=False 
+                )
+                if response.status_code == 429:
+                    retry_after = response.headers.get("Retry-After")
+                    wait_time = int(retry_after) if retry_after and retry_after.isdigit() else (2 ** attempt)
+                    self.log_warning(f"Received 429 status. Waiting {wait_time} seconds before retrying.")
+                    time.sleep(wait_time)
+                    attempt += 1
+                    continue
+                response.raise_for_status()
+                return response
+                
+            except requests.exceptions.RequestException as e:
+                attempt += 1
+                backoff = 2 ** attempt
+                self.log_warning(f"Attempt {attempt} failed for {url}. Backing off for {backoff} seconds. Error: {str(e)}")
+                time.sleep(backoff)
+        raise requests.exceptions.HTTPError(f"All attempts failed for: {url}")
+    
+    async def async_make_request(self, url, method='GET'):
+        return await asyncio.to_thread(self.make_request, url, method)
 
     @abstractmethod
     def scrape_pdp(self, product_link):
@@ -109,3 +132,44 @@ class BaseScraper(ABC):
 
     def log_debug(self, message):
         self.logger.debug(message, exc_info=True)
+    
+    def log_warning(self, message):
+        self.logger.warning(message)
+    
+    async def save_data(self, data):
+        if not data:
+            self.log_error("No data to save")
+            return None
+            
+        try:
+            project_root = os.path.abspath(os.path.join(
+                os.path.dirname(__file__), '..'
+            ))
+            
+            json_dir = os.path.join(project_root, "jsondata")
+            old_dir = os.path.join(project_root, "oldjsondata")
+            os.makedirs(json_dir, exist_ok=True)
+            os.makedirs(old_dir, exist_ok=True)
+
+            current_file = os.path.join(json_dir, f"{self.store_name}.json")
+            old_file = None
+
+            if os.path.exists(current_file):
+                ctime = os.path.getctime(current_file)
+                timestamp = datetime.fromtimestamp(ctime).strftime("%Y%m%d_%H%M%S")
+                
+                old_filename = f"{self.store_name}_{timestamp}.json"
+                old_file = os.path.join(old_dir, old_filename)
+                
+                shutil.move(current_file, old_file)
+                self.log_info(f"Moved old data to {old_file}")
+
+            with open(current_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=4, ensure_ascii=False)
+            
+            self.log_info(f"Saved new data to {current_file}")
+            return current_file
+            
+        except Exception as e:
+            self.log_error(f"Error saving data: {str(e)}")
+            return None

@@ -21,8 +21,28 @@ def setup_logging():
 
 async def main():
     setup_logging()
-    scraper = ZeeWomanScraper()
-    await scraper.scrape_data()
+    scrapers = [
+        ZeeWomanScraper(),
+        WovWorldScraper(),
+        SputnikFootWearScraper(),
+        SpeedSportsScraper(),
+        SheepOfficialScraper(),
+        ShafferScraper(),
+        SapphireScraper(),
+        SayaScraper(),
+        SanaSafinazScraper(),
+        SaeedGhaniScraper(),
+        CambridgeShopScraper(),
+        SulafahScraper()
+    ]
+    tasks = [scraper.scrape_data() for scraper in scrapers]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    for result in results:
+        if isinstance(result, Exception):
+            print("A scraper task failed:", result)
+        else:
+            print("A scraper completed:", result)
 
 if __name__ == "__main__":
     asyncio.run(main())
