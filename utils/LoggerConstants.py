@@ -13,3 +13,6 @@ SAEEDGHANI_LOGGER = "saeedghani"
 CAMBRIDGESHOP_LOGGER = "cambridgeshop"
 OUTFITTERS_LOGGER = "outfitters"
 NISHATLINEN_LOGGER = "nishatlinen"
+CHINYERE_LOGGER = "chinyere"
+ISMAILFAREED_LOGGER = "ismailfareed"
+

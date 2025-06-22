@@ -37,82 +37,99 @@ class EgoScrapper(BaseScraper):
             return list(set(line.strip() for line in file if line.strip()))
 
     async def scrape_pdp(self, product_link):
+        if product_link in self.all_product_links_:
+            return None
+
+        self.all_product_links_.append(product_link)
+        product_data = {
+            'store_name': self.store_name,
+            'title': None,
+            'sku': None,
+            'description': None,
+            'currency': None,
+            'original_price': None,
+            'sale_price': None,
+            'images': [],
+            'brand': None,
+            'availability': None,
+            'category': None,
+            'product_url': product_link,
+            'variants': [],
+            "attributes": {
+                        'breadcrumbs': None,
+                    },
+            'raw_data': {},
+        }
+
         try:
-            response = requests.get(product_link)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'html.parser')
+            response = await self.async_make_request(product_link)
+            soup = BeautifulSoup(response.text, "html.parser")
 
-            product_data = {
-                'title': None,
-                'store_name': 'Ego',
-                'category':None,
-                'brand':None,
-                'original_price': None,
-                'sale_price': None,
-                'images': [],
-                'description': {},
-                'product_link': product_link,
-                'variants': [],
-                "attributes": {
-                     'breadcrumbs': None,
-                },
-                'availability': None,
-                'sku': None,
-                'raw_data': {}  # ✅ Added this key to hold raw scraped text
-            }
+            try:
+                product_title_tag = soup.find('h1', class_='product-single__title ttlTxt tt-u mb15')
+                if product_title_tag:
+                    product_data["title"] = product_title_tag.get_text(strip=True)
+            except Exception as e:
+                self.log_debug(f"Exception occurred while scraping product's title: {e}")
 
-            # Title
-            title_tag = soup.select_one('h1.product-single__title.ttlTxt.tt-u.mb15')
-            if title_tag:
-                product_data['title'] = title_tag.get_text(strip=True)
+            try:
+                sku_element = (
+                    soup.select_one('div.t4s-sku-wrapper span.t4s-sku-value') or
+                    soup.select_one('div.product-sku span.variant-sku') or
+                    soup.select_one('span.product-single__sku')
+                )
+                if sku_element:
+                    product_data['sku'] = sku_element.get_text(strip=True)
+            except Exception as e:
+                self.log_debug(f"Exception occurred while scraping product SKU: {e}")
 
-            # SKU
-            sku_element = (
-                soup.select_one('div.t4s-sku-wrapper span.t4s-sku-value') or
-                soup.select_one('div.product-sku span.variant-sku')
-            )
-            if sku_element:
-                product_data['sku'] = sku_element.get_text(strip=True)
+            try:
+                price_div = (
+                    soup.find('div', id=lambda x: x and x.startswith('pricetemplate')) or
+                    soup.find('div', class_='psinglePriceWr')
+                )
 
-            # Prices
-            price_div = (
-                soup.find('div', id=lambda x: x and x.startswith('pricetemplate')) or
-                soup.find('div', class_='psinglePriceWr')
-            )
+                if price_div:
+                    sale_price_tag = price_div.select_one('span.psinglePrice.sale .money') or price_div.select_one('span.psinglePrice .money')
+                    if sale_price_tag:
+                        price_text = sale_price_tag.get_text(strip=True).replace("Rs.", "").replace(",", "")
+                        try:
+                            product_data['sale_price'] = float(price_text)
+                        except ValueError:
+                            product_data['sale_price'] = None
 
-            if price_div:
-                sale_price_tag = price_div.select_one('span.psinglePrice.sale .money') or price_div.select_one('span.psinglePrice .money')
-                if sale_price_tag:
-                    price_text = sale_price_tag.get_text(strip=True).replace("Rs.", "").replace(",", "")
-                    try:
-                        product_data['sale_price'] = float(price_text)
-                    except ValueError:
+                    original_price_tag = price_div.select_one('s.psinglePrice .money')
+                    if original_price_tag:
+                        price_text = original_price_tag.get_text(strip=True).replace("Rs.", "").replace(",", "")
+                        try:
+                            product_data['original_price'] = float(price_text)
+                        except ValueError:
+                            product_data['original_price'] = None
+
+                    if not product_data.get('original_price') and product_data.get('sale_price'):
+                        product_data['original_price'] = product_data['sale_price']
                         product_data['sale_price'] = None
 
-                original_price_tag = price_div.select_one('s.psinglePrice .money')
-                if original_price_tag:
-                    price_text = original_price_tag.get_text(strip=True).replace("Rs.", "").replace(",", "")
-                    try:
-                        product_data['original_price'] = float(price_text)
-                    except ValueError:
-                        product_data['original_price'] = None
-
-                if not product_data.get('original_price') and product_data.get('sale_price'):
-                    product_data['original_price'] = product_data['sale_price']
-                    product_data['sale_price'] = None
-
+                    product_data['currency'] = "PKR"
+            except Exception as e:
+                self.log_debug(f"Exception occurred while scraping prices: {e}")
+                product_data['original_price'] = None
+                product_data['sale_price'] = None
                 product_data['currency'] = "PKR"
 
-            # Images
-            image_links = soup.select('a.pr_photo') or soup.select('div.pr_thumbs_item a.gitem-img')
-            for a_tag in image_links:
-                zoom_src = a_tag.get('data-zoom') or a_tag.get('href')
-                if zoom_src:
-                    full_url = urljoin('https:', zoom_src)
-                    if full_url not in product_data['images']:
-                        product_data['images'].append(full_url)
+            try:
+                image_links = soup.select('a.pr_photo') or soup.select('div.pr_thumbs_item a.gitem-img')
+                for a_tag in image_links:
+                    zoom_src = a_tag.get('data-zoom') or a_tag.get('href')
+                    if zoom_src:
+                        full_url = urljoin('https:', zoom_src)
+                        if full_url not in product_data['images']:
+                            product_data['images'].append(full_url)
+            except Exception as e:
+                self.log_debug(f"Exception occurred while scraping product images: {e}")
+                product_data['images'] = []
 
-                        # Breadcrumbs
+            try:
                 breadcrumbs = []
                 breadcrumb_nav = soup.select_one('nav.page-width.breadcrumbs')
                 if breadcrumb_nav:
@@ -122,128 +139,135 @@ class EgoScrapper(BaseScraper):
                         text = element.get_text(strip=True)
                         if text:
                             breadcrumbs.append(text)
-
-
-                # ✅ Save breadcrumbs as string in attributes too
                 product_data['attributes']['breadcrumbs'] = " > ".join(breadcrumbs)
+            except Exception as e:
+                self.log_debug(f"Exception occurred while scraping breadcrumbs: {e}")
+                product_data['attributes']['breadcrumbs'] = ""
 
-                    # ✅ Stock as boolean
-            stock_element = soup.select_one('div.product-stock span.stockLbl') or soup.select_one('span.stockLbl.instock')
-            if stock_element:
-                stock_text = stock_element.get_text(strip=True).lower()
-                product_data['availability'] = 'out of stock' not in stock_text
-            else:
-                product_data['availability'] = False  # default to False if element not found
+            try:
+                stock_element = soup.select_one('div.product-stock span.stockLbl') or soup.select_one('span.stockLbl.instock')
+                if stock_element:
+                    stock_text = stock_element.get_text(strip=True).lower()
+                    product_data['availability'] = 'out of stock' not in stock_text
+                else:
+                    product_data['availability'] = False
+            except Exception as e:
+                self.log_debug(f"Exception occurred while scraping stock availability: {e}")
+                product_data['availability'] = False
 
-                    # ✅ Extract Category from Breadcrumb (second breadcrumb span or text)
-            breadcrumb_nav = soup.select_one('nav.page-width.breadcrumbs')
-            category = None
+            try:
+                breadcrumb_nav = soup.select_one('nav.page-width.breadcrumbs')
+                category = None
+                if breadcrumb_nav:
+                    breadcrumb_items = breadcrumb_nav.find_all(['a', 'span'], recursive=False)
+                    visible_items = [el for el in breadcrumb_items if el.name in ['a', 'span'] and 'symbol' not in el.get('class', [])]
+                    if len(visible_items) >= 2:
+                        category = visible_items[1].get_text(strip=True)
+                product_data['category'] = category
+            except Exception as e:
+                self.log_debug(f"Exception occurred while scraping category from breadcrumbs: {e}")
+                product_data['category'] = None
 
-            if breadcrumb_nav:
-                breadcrumb_items = breadcrumb_nav.find_all(['a', 'span'], recursive=False)
-                # Look for the second <span> after <a> (ignoring symbols like '|')
-                visible_items = [el for el in breadcrumb_items if el.name in ['a', 'span'] and 'symbol' not in el.get('class', [])]
-                if len(visible_items) >= 2:
-                    category = visible_items[1].get_text(strip=True)
+            try:
+                desc_div = soup.select_one('div.product-single__description.rte')
+                if desc_div:
+                    for br in desc_div.find_all('br'):
+                        br.replace_with('\n')
+                    raw_text = desc_div.get_text(separator='\n')
+                    lines = [line.strip() for line in raw_text.split('\n') if line.strip()]
+                    description_text = '\n'.join(lines)
+                    product_data['description'] = description_text
+            except Exception as e:
+                self.log_debug(f"Exception occurred while scraping product description: {e}")
+                product_data['description'] = ""
 
-            product_data['category'] = category
-
-
-
-
-            # Description
-            desc_div = soup.select_one('div.product-single__description.rte')
-            if desc_div:
-                for br in desc_div.find_all('br'):
-                    br.replace_with('\n')
-                raw_text = desc_div.get_text(separator='\n')
-                lines = [line.strip() for line in raw_text.split('\n') if line.strip()]
-                description_text = '\n'.join(lines)
-                product_data['description'] = description_text
-
-                        # ✅ Size Availability with boolean status
+            try:
                 size_inputs = soup.find_all("input", {"name": "size"})
                 size_info_list = []
 
                 for input_tag in size_inputs:
                     size = input_tag["value"]
                     variant_id = input_tag.get("data-variant-id")
-
                     if variant_id:
                         variant_url = f"{product_link}?variant={variant_id}"
                         variant_response = requests.get(variant_url)
                         variant_soup = BeautifulSoup(variant_response.text, 'html.parser')
-
                         add_to_cart_button = variant_soup.find("button", {"id": "AddToCart-template--16869896716541__product"})
                         if add_to_cart_button:
                             is_disabled = add_to_cart_button.has_attr("disabled")
                             is_available = not is_disabled
                         else:
-                            is_available = False  # if button not found, assume not available
+                            is_available = False
 
                         size_info_list.append({
                             "size": size,
-                            "available": is_available
+                            "availability": is_available
                         })
 
                 product_data['variants'] = size_info_list
+            except Exception as e:
+                self.log_debug(f"Exception occurred while scraping size availability: {e}")
+                product_data['variants'] = []
 
-                    # ✅ ADDITION: Shipping & Delivery Info
-            shipping_div = soup.select_one('div.product__policies')
-            if shipping_div:
-                shipping_text = shipping_div.get_text(strip=True)
-                product_data['raw_data']['shipping_policy'] = shipping_text
+            try:
+                shipping_div = soup.select_one('div.product__policies')
+                if shipping_div:
+                    shipping_text = shipping_div.get_text(strip=True)
+                    product_data['raw_data']['shipping_policy'] = shipping_text
 
-            delivery_p = soup.select_one('p.shippingMsg.mb25')
-            if delivery_p:
-                delivery_text = delivery_p.get_text(strip=True)
-                product_data['raw_data']['delivery_estimate'] = delivery_text
+                delivery_p = soup.select_one('p.shippingMsg.mb25')
+                if delivery_p:
+                    delivery_text = delivery_p.get_text(strip=True)
+                    product_data['raw_data']['delivery_estimate'] = delivery_text
+            except Exception as e:
+                self.log_debug(f"Exception occurred while scraping shipping and delivery info: {e}")
+                product_data['raw_data']['shipping_policy'] = None
+                product_data['raw_data']['delivery_estimate'] = None
 
-
-            return product_data
+          
 
         except Exception as e:
             self.log_error(f"Error scraping PDP {product_link}: {str(e)}")
-            return {
-                'error': str(e),
-                'product_link': product_link,
-                'sizes': []
-            }
+
+        return product_data
+
    
     async def scrape_products_links(self, url):
-            all_product_links = []
-            page_number = 1
-            current_url = url
+        all_product_links = []
+        page_number = 1
+        current_url = url
 
-            while True:
-                try:
-                    self.log_info(f"Scraping page {page_number}: {current_url}")
-                    response = requests.get(current_url, headers=self.headers, timeout=10)
-                    response.raise_for_status()
-                    soup = BeautifulSoup(response.text, 'html.parser')
+        while True:
+            try:
+                self.log_info(f"Scraping page {page_number}: {current_url}")
+                
+                
+                response = await self.async_make_request(current_url)
 
-                    # ✅ This will match the anchor tag correctly
-                    product_links = soup.select('a.gimg-link[href^="/products/"]')
+                soup = BeautifulSoup(response.text, 'html.parser')
 
-                    if not product_links:
-                        self.log_info(f"No products found on page {page_number}. Stopping.")
-                        break
+                product_links = soup.select('a.gimg-link[href^="/products/"]')
 
-                    for link_tag in product_links:
-                        href = link_tag.get('href')
-                        if href:
-                            product_url = f"{self.base_url}{href}" if href.startswith('/') else href
-                            all_product_links.append(product_url)
-
-                    page_number += 1
-                    current_url = f"{url}?page={page_number}" if "?" not in url else f"{url}&page={page_number}"
-
-                except Exception as e:
-                    self.log_error(f"Error scraping page {page_number}: {e}")
+                if not product_links:
+                    self.log_info(f"No products found on page {page_number}. Stopping.")
                     break
 
-            self.log_info(f"Collected {len(all_product_links)} product links.")
-            return all_product_links
+                for link_tag in product_links:
+                    href = link_tag.get('href')
+                    if href:
+                        product_url = f"{self.base_url}{href}" if href.startswith('/') else href
+                        all_product_links.append(product_url)
+
+                page_number += 1
+                current_url = f"{url}?page={page_number}" if "?" not in url else f"{url}&page={page_number}"
+
+            except Exception as e:
+                self.log_error(f"Error scraping page {page_number}: {e}")
+                break
+
+        self.log_info(f"Collected {len(all_product_links)} product links.")
+        return all_product_links
+
 
    
     async def scrape_category(self, url):

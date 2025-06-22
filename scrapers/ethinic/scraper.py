@@ -15,7 +15,7 @@ import time
 
 
 class EthinicScraper(BaseScraper):
-    def __init__(self, proxies=None, request_delay=0.1):
+    def __init__(self, proxies=None, request_delay=1):
         super().__init__(
             base_url="https://pk.ethnc.com/",
             logger_name=ETHINIC_LOGGER,
@@ -38,146 +38,155 @@ class EthinicScraper(BaseScraper):
             return list(set(line.strip() for line in file if line.strip()))
 
 
-    async def scrape_pdp(self, product_link):
-        try:
-            response = requests.get(product_link)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'html.parser')
+    async def scrape_pdp(self, product_link):        
+        if product_link in self.all_product_links_:
+            return None
 
-            product_data = {
-        'title': None,
-        'store_name':'ethinic',
-        'brand':None,
-        'category':None,
-        'avaliblity':None,
-        'sku': None,
-        'original_price': None,
-        'sale_price': None,
-        'currency': None,
-        'images': [],
-        'attributes': None,
-        'description': None,
-        'product_link': product_link,
-        'variants': [],
-        'raw_data': {                     
-            'care_instructions': []       
+        self.all_product_links_.append(product_link)
+        product_data = {
+            'store_name': self.store_name,
+            'title': None,
+            'sku': None,
+            'description': None,
+            'currency': None,
+            'original_price': None,
+            'sale_price': None,
+            'images': [],
+            'brand': None,
+            'availability': None,
+            'category': None,
+            'product_url': product_link,
+            'variants': [],
+            'attributes': {},
+            'raw_data': {
+                'care_instructions': []
+            }
         }
-    }
 
+        try:
+            response = await self.async_make_request(product_link)
+            soup = BeautifulSoup(response.text, "html.parser")
 
-            # Product Name
-            title_tag = soup.select_one('h1.title')
-            if title_tag:
-                product_data['title'] = title_tag.get_text(strip=True)
+            try:
+                product_title_tag = soup.find('h1', class_="title")
+                if product_title_tag:
+                    product_data["title"] = product_title_tag.get_text(strip=True)
+            except Exception as e:
+                self.log_debug(f"Exception occurred while scraping product's title: {e}")
 
+            try:
+                sku_element = soup.select_one('div.t4s-sku-wrapper span.t4s-sku-value')
+                if sku_element:
+                    product_data['sku'] = sku_element.get_text(strip=True)
+            except Exception as e:
+                self.log_debug(f"Exception occurred while scraping product SKU: {e}")
 
-            # SKU
-            sku_element = soup.select_one('div.t4s-sku-wrapper span.t4s-sku-value')
-            if sku_element:
-                product_data['sku'] = sku_element.get_text(strip=True)
+            try:
+                # === Prices ===
+                price_div = soup.find('div', class_='new-price')
+                if price_div:
+                    # Extract currency symbol
+                    currency = None
 
-            # === Prices ===
-            price_div = soup.find('div', class_='new-price')
-            if price_div:
-                # Extract currency symbol
-                currency = None
-                def extract_currency(price_text):
-                    match = re.match(r'([^\d\s.,]+)', price_text)
-                    return match.group(1) if match else None
+                    def extract_currency(price_text):
+                        match = re.match(r'([^\d\s.,]+)', price_text)
+                        return match.group(1) if match else None
 
-                def clean_price(price_text):
-                    return re.sub(r'[^\d]', '', price_text)
+                    def clean_price(price_text):
+                        return re.sub(r'[^\d]', '', price_text)
 
-                # Discounted (original) price
-                off_price_div = price_div.find('div', class_='off-price')
-                if off_price_div:
-                    original_price_span = off_price_div.find('span', class_='money')
-                    if original_price_span:
-                        price_text = original_price_span.get_text(strip=True)
-                        product_data['original_price'] = clean_price(price_text)
-                        currency = extract_currency(price_text)
-
-                # Sale price
-                sale_price_div = price_div.find('div', class_='sale-price')
-                if sale_price_div:
-                    sale_price_spans = sale_price_div.find_all('span', class_='money')
-                    if sale_price_spans:
-                        price_text = sale_price_spans[-1].get_text(strip=True)
-                        product_data['sale_price'] = clean_price(price_text)
-                        if not currency:
-                            currency = extract_currency(price_text)
-                else:
-                    # No sale, only one price
-                    price_simple_div = price_div.find('div', class_='price')
-                    if price_simple_div:
-                        price_span = price_simple_div.find('span', class_='money')
-                        if price_span:
-                            price_text = price_span.get_text(strip=True)
+                    # Discounted (original) price
+                    off_price_div = price_div.find('div', class_='off-price')
+                    if off_price_div:
+                        original_price_span = off_price_div.find('span', class_='money')
+                        if original_price_span:
+                            price_text = original_price_span.get_text(strip=True)
                             product_data['original_price'] = clean_price(price_text)
                             currency = extract_currency(price_text)
 
-                product_data['currency'] = currency if currency else "PKR"
-                      
-        
+                    # Sale price
+                    sale_price_div = price_div.find('div', class_='sale-price')
+                    if sale_price_div:
+                        sale_price_spans = sale_price_div.find_all('span', class_='money')
+                        if sale_price_spans:
+                            price_text = sale_price_spans[-1].get_text(strip=True)
+                            product_data['sale_price'] = clean_price(price_text)
+                            if not currency:
+                                currency = extract_currency(price_text)
+                    else:
+                        # No sale, only one price
+                        price_simple_div = price_div.find('div', class_='price')
+                        if price_simple_div:
+                            price_span = price_simple_div.find('span', class_='money')
+                            if price_span:
+                                price_text = price_span.get_text(strip=True)
+                                product_data['original_price'] = clean_price(price_text)
+                                currency = extract_currency(price_text)
 
-          
-           
+                    product_data['currency'] = currency if currency else "PKR"
+            except Exception as e:
+                self.log_debug(f"Exception occurred while scraping prices: {e}")
+                product_data['original_price'] = None
+                product_data['sale_price'] = None
+                product_data['currency'] = "PKR"
 
-            visited_urls = set()
-            visited_urls.add(product_link)
-            base_url = self.base_url if hasattr(self, 'base_url') else product_link
-            product_data["images"] = []
+            try:
+                visited_urls = set()
+                visited_urls.add(product_link)
+                base_url = self.base_url if hasattr(self, 'base_url') else product_link
+                product_data["images"] = []
 
-            def extract_images_from_soup(soup_obj):
-                image_elements = soup_obj.select("div.swiper.thumbswiper img")
-                for img in image_elements:
-                    src = img.get("src") or img.get("data-src")
-                    if src:
-                        if src.startswith("//"):
-                            src = "https:" + src
-                        else:
-                            src = urljoin(base_url, src)
+                def extract_images_from_soup(soup_obj):
+                    image_elements = soup_obj.select("div.swiper.thumbswiper img")
+                    for img in image_elements:
+                        src = img.get("src") or img.get("data-src")
+                        if src:
+                            if src.startswith("//"):
+                                src = "https:" + src
+                            else:
+                                src = urljoin(base_url, src)
 
-                        parsed_url = urlparse(src)
-                        query_params = parse_qs(parsed_url.query)
-                        query_params.pop("width", None)
-                        clean_query = "&".join(f"{k}={v[0]}" for k, v in query_params.items())
-                        final_url = urlunparse(parsed_url._replace(query=clean_query))
+                            parsed_url = urlparse(src)
+                            query_params = parse_qs(parsed_url.query)
+                            query_params.pop("width", None)
+                            clean_query = "&".join(f"{k}={v[0]}" for k, v in query_params.items())
+                            final_url = urlunparse(parsed_url._replace(query=clean_query))
 
-                        if final_url not in product_data["images"]:
-                            product_data["images"].append(final_url)
+                            if final_url not in product_data["images"]:
+                                product_data["images"].append(final_url)
 
-            # Extract main product images
-            extract_images_from_soup(soup)
+                # Extract main product images
+                extract_images_from_soup(soup)
 
-            # Get variant links
-            variant_links = []
-            variant_anchors = soup.select("div.new-option-single.color-option a.option-single-value[href]")
-            for a in variant_anchors:
-                href = a["href"]
-                full_url = urljoin(base_url, href)
-                if full_url not in visited_urls:
-                    variant_links.append(full_url)
+                # Get variant links
+                variant_links = []
+                variant_anchors = soup.select("div.new-option-single.color-option a.option-single-value[href]")
+                for a in variant_anchors:
+                    href = a["href"]
+                    full_url = urljoin(base_url, href)
+                    if full_url not in visited_urls:
+                        variant_links.append(full_url)
 
-            # Extract images from variants
-            for variant_url in variant_links:
-                visited_urls.add(variant_url)
-                variant_resp = requests.get(variant_url)
-                variant_resp.raise_for_status()
-                variant_soup = BeautifulSoup(variant_resp.text, "html.parser")
-                extract_images_from_soup(variant_soup)
+                # Extract images from variants
+                for variant_url in variant_links:
+                    visited_urls.add(variant_url)
+                    variant_resp = await self.async_make_request(variant_url)
+                    variant_soup = BeautifulSoup(variant_resp.text, "html.parser")
+                    extract_images_from_soup(variant_soup)
 
-            # =====================================
+            except Exception as e:
+                self.log_debug(f"Exception occurred while extracting product images and variants: {e}")
+                product_data["images"] = []
 
-          
-
-            
-
-            # Short Description
-            short_desc_div = soup.select_one('div.new-product-short-description .metafield-rich_text_field')
-            if short_desc_div:
-                paragraphs = [p.get_text(strip=True).replace('\xa0', ' ') for p in short_desc_div.find_all('p')]
-                product_data['attributes'] = ' '.join(paragraphs)
+            try:
+                # Short Description
+                short_desc_div = soup.select_one('div.new-product-short-description .metafield-rich_text_field')
+                if short_desc_div:
+                    paragraphs = [p.get_text(strip=True).replace('\xa0', ' ') for p in short_desc_div.find_all('p')]
+                    product_data['attributes'] = ' '.join(paragraphs)
+            except Exception as e:
+                self.log_debug(f"Exception occurred while scraping short description: {e}")
+                product_data['attributes'] = ""
 
             # Product Description
             description_div = soup.select_one('div.draw-content')
@@ -187,10 +196,11 @@ class EthinicScraper(BaseScraper):
                 paragraphs = [p.get_text(separator='\n', strip=True).replace('\xa0', ' ') for p in description_div.find_all('p')]
                 product_data['description'] = '\n\n'.join(paragraphs)
 
-                            # Ensure raw_data key exists
-                if 'raw_data' not in product_data:
-                    product_data['raw_data'] = {}
+            # Ensure raw_data key exists
+            if 'raw_data' not in product_data:
+                product_data['raw_data'] = {}
 
+            try:
                 # Scrape care instructions
                 care_instructions = []
 
@@ -204,7 +214,11 @@ class EthinicScraper(BaseScraper):
 
                 # Save into raw_data
                 product_data['raw_data']['care_instructions'] = care_instructions if care_instructions else None
+            except Exception as e:
+                self.log_debug(f"Exception occurred while scraping care instructions: {e}")
+                product_data['raw_data']['care_instructions'] = None
 
+            try:
                 # === Color Variants ===
                 color_section = soup.find("div", class_="new-option-single color-option")
                 colors = []
@@ -249,12 +263,15 @@ class EthinicScraper(BaseScraper):
                                 'availability': availability
                             })
 
-
-            return product_data
+            except Exception as e:
+                self.log_debug(f"Exception occurred while scraping color/size variants: {e}")
 
         except Exception as e:
             self.log_error(f"Error scraping PDP {product_link}: {str(e)}")
             return {'error': str(e), 'product_link': product_link}
+
+        return product_data
+
 
             
     async def scrape_products_links(self, url):
@@ -265,11 +282,9 @@ class EthinicScraper(BaseScraper):
             while True:
                 try:
                     self.log_info(f"Scraping page {page_number}: {current_url}")
-                    response = requests.get(current_url, headers=self.headers, timeout=10)
-                    response.raise_for_status()
+                    response = await self.async_make_request(current_url)
                     soup = BeautifulSoup(response.text, 'html.parser')
 
-                    # Find all product <li> tags with class containing 'product__item'
                     product_items = soup.select('li.product__item')
 
                     if not product_items:
@@ -302,6 +317,7 @@ class EthinicScraper(BaseScraper):
 
             self.log_info(f"Collected {len(all_product_links)} unique product links.")
             return list(all_product_links)
+
         
     async def scrape_category(self, url):
             all_products = []

@@ -14,7 +14,7 @@ import time
 
 
 class chinyerescraper(BaseScraper):
-    def __init__(self, proxies=None, request_delay=0.1):
+    def __init__(self, proxies=None, request_delay=1):
         super().__init__(
             base_url="https://www.chinyere.pk/",
             logger_name=CHINYERE_LOGGER,
@@ -52,24 +52,22 @@ class chinyerescraper(BaseScraper):
             self.all_product_links_.append(product_link)
 
             product_data = {
-                'store_name': self.store_name,
-                'title': None,
-                'brand':None,
-                'category':None,
-                'sku': None,
-                'description': None,
-                'currency': None,
-                'original_price': None,
-                'sale_price': None,
-                'images': [],
-                'brand': None,
-                'availability': None,
-                'category': None,
-                'product_url': product_link,
-                'variants': [],
-                'attributes': {},
-                'raw_data': {},
-            }
+            'store_name': self.store_name,
+            'title': None,
+            'sku': None,
+            'description': None,
+            'currency': None,
+            'original_price': None,
+            'sale_price': None,
+            'images': [],
+            'brand': None,
+            'availability': None,
+            'category': None,
+            'product_url': product_link,
+            'variants': [],
+            'attributes': {},
+            'raw_data': {}
+        }
 
             try:
                 response = await self.async_make_request(product_link)
@@ -86,44 +84,59 @@ class chinyerescraper(BaseScraper):
                     self.log_debug(f"Exception occurred while scraping product's title: {e}")
 
                 try:
-                    # Prices
-                    price_div = soup.find('div', class_='price')
-                    if price_div:
-                        currency_symbol = None
+                        price_div = soup.find('div', class_='price')
+                        if price_div:
+                            currency_symbol = None
+                            sale_price = None
+                            original_price = None
 
-                        # Try to find sale price (discounted price)
-                        sale_last_dd = price_div.select_one('div.price__sale dd.price__last span.money')
-                        if sale_last_dd:
-                            sale_text = sale_last_dd.get_text(strip=True)
-                            sale_clean = ''.join(filter(lambda x: x.isdigit() or x == '.', sale_text)).lstrip('.')
-                            product_data['sale_price'] = sale_clean
-                            currency_symbol = ''.join(filter(lambda x: not x.isdigit() and x != '.', sale_text)).strip()
+                            # Extract text from both sale and compare price spans
+                            sale_dd = price_div.select_one('div.price__sale dd.price__last span.money')
+                            compare_dd = price_div.select_one('div.price__sale dd.price__compare span.money')
 
-                        # Try to find original (compare) price
-                        compare_dd = price_div.select_one('div.price__sale dd.price__compare span.money')
-                        if compare_dd:
-                            compare_text = compare_dd.get_text(strip=True)
-                            original_clean = ''.join(filter(lambda x: x.isdigit() or x == '.', compare_text)).lstrip('.')
-                            product_data['original_price'] = original_clean
-                            if not currency_symbol:
+                            if sale_dd and compare_dd:
+                                sale_text = sale_dd.get_text(strip=True)
+                                compare_text = compare_dd.get_text(strip=True)
+
+                                sale_clean = ''.join(filter(lambda x: x.isdigit() or x == '.', sale_text)).lstrip('.')
+                                compare_clean = ''.join(filter(lambda x: x.isdigit() or x == '.', compare_text)).lstrip('.')
+
+                                # If the prices are the same, treat it as regular price
+                                if sale_clean != compare_clean:
+                                    product_data['sale_price'] = sale_clean
+                                    product_data['original_price'] = compare_clean
+                                    currency_symbol = ''.join(filter(lambda x: not x.isdigit() and x != '.', sale_text)).strip()
+                                else:
+                                    product_data['original_price'] = sale_clean
+                                    currency_symbol = ''.join(filter(lambda x: not x.isdigit() and x != '.', sale_text)).strip()
+
+                            elif sale_dd:
+                                sale_text = sale_dd.get_text(strip=True)
+                                sale_clean = ''.join(filter(lambda x: x.isdigit() or x == '.', sale_text)).lstrip('.')
+                                product_data['original_price'] = sale_clean
+                                currency_symbol = ''.join(filter(lambda x: not x.isdigit() and x != '.', sale_text)).strip()
+
+                            elif compare_dd:
+                                compare_text = compare_dd.get_text(strip=True)
+                                compare_clean = ''.join(filter(lambda x: x.isdigit() or x == '.', compare_text)).lstrip('.')
+                                product_data['original_price'] = compare_clean
                                 currency_symbol = ''.join(filter(lambda x: not x.isdigit() and x != '.', compare_text)).strip()
 
-                        # Fallback to regular price
-                        if 'sale_price' not in product_data or not product_data['sale_price']:
-                            regular_dd = price_div.select_one('div.price__regular dd.price__last span.money')
-                            if regular_dd:
-                                regular_text = regular_dd.get_text(strip=True)
-                                regular_clean = ''.join(filter(lambda x: x.isdigit() or x == '.', regular_text)).lstrip('.')
-                                product_data['original_price'] = regular_clean
-                                if not currency_symbol:
+                            else:
+                                # Fallback to regular price
+                                regular_dd = price_div.select_one('div.price__regular dd.price__last span.money')
+                                if regular_dd:
+                                    regular_text = regular_dd.get_text(strip=True)
+                                    regular_clean = ''.join(filter(lambda x: x.isdigit() or x == '.', regular_text)).lstrip('.')
+                                    product_data['original_price'] = regular_clean
                                     currency_symbol = ''.join(filter(lambda x: not x.isdigit() and x != '.', regular_text)).strip()
 
-                        # ✅ Save the currency if found
-                        if currency_symbol:
-                            product_data['currency'] = currency_symbol
+                            if currency_symbol:
+                                product_data['currency'] = currency_symbol
 
                 except Exception as e:
-                    self.log_error(f"Error extracting prices: {str(e)}")
+                    self.log_debug(f"Error extracting prices: {str(e)}")
+
 
 
                 try:
@@ -182,7 +195,7 @@ class chinyerescraper(BaseScraper):
                             if size_text:
                                 size_value = size_text.get_text(strip=True)
                                 available = 'soldout' not in label.get('class', [])
-                                size_data = {'size': size_value, 'available': available}
+                                size_data = {'size': size_value, 'availability': available}
                                 all_sizes.append(size_data)
                                 visible_sizes.append(size_data)
 
@@ -196,7 +209,7 @@ class chinyerescraper(BaseScraper):
             return product_data
 
     
-        
+            
     async def scrape_products_links(self, url):
         all_product_links = set()
         page_number = 1
@@ -205,23 +218,20 @@ class chinyerescraper(BaseScraper):
         while True:
             try:
                 self.log_info(f"Scraping page {page_number}: {current_url}")
-                response = requests.get(current_url, headers=self.headers, timeout=10)
-                response.raise_for_status()
+                response = await self.async_make_request(current_url)
                 soup = BeautifulSoup(response.text, 'html.parser')
 
-                # Select the first <a> tag with class 'card-link' and href starting with '/products/'
-                link_tag = soup.select_one('a.card-link[href^="/products/"]')
+                # Get all product links on the current page
+                link_tags = soup.select('a.card-link[href^="/products/"]')
 
-                if not link_tag:
-                    self.log_info(f"No product link found on page {page_number}. Stopping.")
+                if not link_tags:
+                    self.log_info(f"No product links found on page {page_number}. Stopping.")
                     break
 
-                href = link_tag['href']
-                product_url = f"{self.base_url}{href}" if href.startswith('/') else href
-                all_product_links.add(product_url)
-
-                # Since we only want the first link, break immediately
-                break
+                for tag in link_tags:
+                    href = tag['href']
+                    product_url = f"{self.base_url}{href}" if href.startswith('/') else href
+                    all_product_links.add(product_url)
 
             except Exception as e:
                 self.log_error(f"Error scraping page {page_number}: {e}")
@@ -235,7 +245,6 @@ class chinyerescraper(BaseScraper):
 
         self.log_info(f"Collected {len(all_product_links)} product link(s).")
         return list(all_product_links)
-
 
 
     async def scrape_category(self, url):
