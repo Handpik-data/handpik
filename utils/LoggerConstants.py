@@ -15,4 +15,27 @@ OUTFITTERS_LOGGER = "outfitters"
 NISHATLINEN_LOGGER = "nishatlinen"
 CHINYERE_LOGGER = "chinyere"
 ISMAILFAREED_LOGGER = "ismailfareed"
+NAKOOSH_LOGGER = "NAKOOSH"
+Diner_Logger = "Diner"
+ETHINIC_LOGGER = "ethinic"
+INSIGMA_LOGGER = "insigma"
+ALKARAM_LOGGER = "alkaram"
+BEECHTREE_LOGGER = "beechtree"
+almirah_logger = "almirah"
+ETHINIC_LOGGER = "ethinic"
+KHADDI_LOGGER="khaddi_Website"
+HUSHPUPPIES_LOGGER = "hushpuppies"
+Ego_LOGGER = "ego"
+IMAGE_LOGGER = "image"
+GENERATION_LOGGER = "generation_logger"
+
+
+
+
+
+
+
+
+
+
 

@@ -1,417 +1,389 @@
 {
-    "version": 1,
-    "formatters": {
-        "detailed": {
-            "format": "%(asctime)s [%(levelname)s] - %(module)s - Worker: %(process)d - %(message)s"
-        }
-    },
-    "handlers": {
-        "zeenwoman_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/zeenwoman.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-        "wovworld_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/wovworld.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-        "sulafah_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/sulafah.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-        "sputnik_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/sputnik.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-        "speedSports_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/speedsports.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-        "sheepOfficial_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/sheepofficial.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-        "shaffer_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/shaffer.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-        "sapphire_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/sapphire.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-        "saya_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/saya.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-        "sanasafinaz_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/sanasafinaz.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-        "saeedghani_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/saeedghani.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-        "cambridgeshop_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/cambridgeshop.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-        "outfitters_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/outfitters.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-        "nishatlinen_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/nishatlinen.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-        "chinyere_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/chinyere.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-        "Diner_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/diner.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-        "beechtree_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/beechtree.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-            "hushpuppies_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/hushpuppies.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-            "insigma_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/insigma.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-            "ismailfareed_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/ismailfareed.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-            "amiradnan_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/amiradnan.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-            "ethinic_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/ethinic.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-            "generation_logger_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/generation_logger.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-            "image_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/image.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-            "almirah_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/almirah.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-            "alkaram_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/alkaram.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-            "khaddi_Website_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/khaddi_Website.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-            "ego_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/ego.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        },
-            "nakoosh_handler": {
-            "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-            "formatter": "detailed",
-            "filename": "./logs/nakoosh.log",
-            "when": "midnight",
-            "interval": 1,
-            "backupCount": 30,
-            "delay": true
-        }
-
-
-
-
-
-
-
-
-
-
-
-
-    },
-    "loggers": {
-        "zeenwoman": {
-            "handlers": ["zeenwoman_handler"],
-            "level": "DEBUG"
-        },
-        "wovworld": {
-            "handlers": ["wovworld_handler"],
-            "level": "DEBUG"
-        },
-        "sulafah": {
-            "handlers": ["sulafah_handler"],
-            "level": "DEBUG"
-        },
-        "sputnik": {
-            "handlers": ["sputnik_handler"],
-            "level": "DEBUG"            
-        },
-        "speedsports": {
-            "handlers": ["speedSports_handler"],
-            "level": "DEBUG"            
-        },
-        "sheepofficial": {
-            "handlers": ["sheepOfficial_handler"],
-            "level": "DEBUG"            
-        },
-        "shaffer": {
-            "handlers": ["shaffer_handler"],
-            "level": "DEBUG"            
-        },
-        "sapphire": {
-            "handlers": ["sapphire_handler"],
-            "level": "DEBUG"            
-        },
-        "saya": {
-            "handlers": ["saya_handler"],
-            "level": "DEBUG"            
-        },
-        "sanasafinaz": {
-            "handlers": ["sanasafinaz_handler"],
-            "level": "DEBUG"            
-        },
-        "saeedghani": {
-            "handlers": ["saeedghani_handler"],
-            "level": "DEBUG"            
-        },
-        "cambridgeshop": {
-            "handlers": ["cambridgeshop_handler"],
-            "level": "DEBUG"            
-        },
-        "outfitters": {
-            "handlers": ["outfitters_handler"],
-            "level": "DEBUG"            
-        },
-        "nishatlinen": {
-            "handlers": ["nishatlinen_handler"],
-            "level": "DEBUG"            
-        },
-        "chinyere": {
-            "handlers": ["chinyere_handler"],
-            "level": "DEBUG"
-        },
-        "Diner": {
-        "handlers": ["Diner_handler"],
-        "level": "DEBUG"
-        },
-        "beechtree": {
-        "handlers": ["beechtree_handler"],
-        "level": "DEBUG"
-        },
-        "hushpuppies": {
-        "handlers": ["hushpuppies_handler"],
-        "level": "DEBUG"
-        },
-        "ismailfareed": {
-        "handlers": ["ismailfareed_handler"],
-        "level": "DEBUG"
-        },
-        "amiradnan": {
-        "handlers": ["amiradnan_handler"],
-        "level": "DEBUG"
-        },
-        "ethinic": {
-        "handlers": ["ethinic_handler"],
-        "level": "DEBUG"
-        },
-        "generation_logger": {
-        "handlers": ["generation_logger_handler"],
-        "level": "DEBUG"
-        },
-        "image": {
-        "handlers": ["image_handler"],
-        "level": "DEBUG"
-        },
-        "almirah": {
-        "handlers": ["almirah_handler"],
-        "level": "DEBUG"
-        },
-        "alkaram": {
-        "handlers": ["alkaram_handler"],
-        "level": "DEBUG"
-        },
-        "khaddi_Website": {
-        "handlers": ["khaddi_Website_handler"],
-        "level": "DEBUG"
-        },
-        "ego": {
-        "handlers": ["ego_handler"],
-        "level": "DEBUG"
-        },
-        "insigma": {
-        "handlers": ["insigma_handler"],
-        "level": "DEBUG"
-        },
-        "NAKOOSH": {
-        "handlers": ["nakoosh_handler"],
-        "level": "DEBUG"
+  "version": 1,
+  "formatters": {
+    "detailed": {
+      "format": "%(asctime)s [%(levelname)s] - %(module)s - Worker: %(process)d - %(message)s"
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
+  },
+  "handlers": {
+    "zeenwoman_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/zeenwoman.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "wovworld_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/wovworld.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "sulafah_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/sulafah.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "sputnik_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/sputnik.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "speedSports_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/speedsports.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "sheepOfficial_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/sheepofficial.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "shaffer_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/shaffer.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "sapphire_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/sapphire.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "saya_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/saya.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "sanasafinaz_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/sanasafinaz.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "saeedghani_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/saeedghani.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "cambridgeshop_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/cambridgeshop.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "outfitters_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/outfitters.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "nishatlinen_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/nishatlinen.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "chinyere_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/chinyere.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "Diner_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/diner.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "beechtree_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/beechtree.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "hushpuppies_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/hushpuppies.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "insigma_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/insigma.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "ismailfareed_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/ismailfareed.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "amiradnan_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/amiradnan.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "ethinic_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/ethinic.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "generation_logger_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/generation_logger.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "image_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/image.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "almirah_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/almirah.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "alkaram_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/alkaram.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "khaddi_Website_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/khaddi_Website.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "ego_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/ego.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "nakoosh_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/nakoosh.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
     }
+  },
+  "loggers": {
+    "zeenwoman": {
+      "handlers": ["zeenwoman_handler"],
+      "level": "DEBUG"
+    },
+    "wovworld": {
+      "handlers": ["wovworld_handler"],
+      "level": "DEBUG"
+    },
+    "sulafah": {
+      "handlers": ["sulafah_handler"],
+      "level": "DEBUG"
+    },
+    "sputnik": {
+      "handlers": ["sputnik_handler"],
+      "level": "DEBUG"
+    },
+    "speedsports": {
+      "handlers": ["speedSports_handler"],
+      "level": "DEBUG"
+    },
+    "sheepofficial": {
+      "handlers": ["sheepOfficial_handler"],
+      "level": "DEBUG"
+    },
+    "shaffer": {
+      "handlers": ["shaffer_handler"],
+      "level": "DEBUG"
+    },
+    "sapphire": {
+      "handlers": ["sapphire_handler"],
+      "level": "DEBUG"
+    },
+    "saya": {
+      "handlers": ["saya_handler"],
+      "level": "DEBUG"
+    },
+    "sanasafinaz": {
+      "handlers": ["sanasafinaz_handler"],
+      "level": "DEBUG"
+    },
+    "saeedghani": {
+      "handlers": ["saeedghani_handler"],
+      "level": "DEBUG"
+    },
+    "cambridgeshop": {
+      "handlers": ["cambridgeshop_handler"],
+      "level": "DEBUG"
+    },
+    "outfitters": {
+      "handlers": ["outfitters_handler"],
+      "level": "DEBUG"
+    },
+    "nishatlinen": {
+      "handlers": ["nishatlinen_handler"],
+      "level": "DEBUG"
+    },
+    "chinyere": {
+      "handlers": ["chinyere_handler"],
+      "level": "DEBUG"
+    },
+    "Diner": {
+      "handlers": ["Diner_handler"],
+      "level": "DEBUG"
+    },
+    "beechtree": {
+      "handlers": ["beechtree_handler"],
+      "level": "DEBUG"
+    },
+    "hushpuppies": {
+      "handlers": ["hushpuppies_handler"],
+      "level": "DEBUG"
+    },
+    "ismailfareed": {
+      "handlers": ["ismailfareed_handler"],
+      "level": "DEBUG"
+    },
+    "amiradnan": {
+      "handlers": ["amiradnan_handler"],
+      "level": "DEBUG"
+    },
+    "ethinic": {
+      "handlers": ["ethinic_handler"],
+      "level": "DEBUG"
+    },
+    "generation_logger": {
+      "handlers": ["generation_logger_handler"],
+      "level": "DEBUG"
+    },
+    "image": {
+      "handlers": ["image_handler"],
+      "level": "DEBUG"
+    },
+    "almirah": {
+      "handlers": ["almirah_handler"],
+      "level": "DEBUG"
+    },
+    "alkaram": {
+      "handlers": ["alkaram_handler"],
+      "level": "DEBUG"
+    },
+    "khaddi_Website": {
+      "handlers": ["khaddi_Website_handler"],
+      "level": "DEBUG"
+    },
+    "ego": {
+      "handlers": ["ego_handler"],
+      "level": "DEBUG"
+    },
+    "insigma": {
+      "handlers": ["insigma_handler"],
+      "level": "DEBUG"
+    },
+    "NAKOOSH": {
+      "handlers": ["nakoosh_handler"],
+      "level": "DEBUG"
+    }
+  }
 }

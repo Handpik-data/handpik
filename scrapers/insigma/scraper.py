@@ -14,7 +14,7 @@ import time
 
 
 class insigma_scraper(BaseScraper):
-    def __init__(self, proxies=None, request_delay=1):
+    def __init__(self, proxies=None, request_delay=0.1):
         super().__init__(
             base_url="https://insignia.com.pk/",
             logger_name=INSIGMA_LOGGER,

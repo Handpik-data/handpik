@@ -134,7 +134,7 @@ class AlkaramScraper(BaseScraper):
             try:
                 # Availability as boolean
                 availability_span = soup.find('span', class_='product-availabibility')
-                product_data['available'] = availability_span is not None
+                product_data['availability'] = availability_span is not None
             except Exception as e:
                 return {'error': f'Exception occurred while extracting availability: {str(e)}', 'product_link': product_link}
 
@@ -231,37 +231,37 @@ class AlkaramScraper(BaseScraper):
 
     
     async def scrape_products_links(self, url):
-                all_product_links = []
-                page_number = 1
-                current_url = url
+        all_product_links = []
+        page_number = 1
+        current_url = url
 
-                while True:
-                    try:
-                        self.log_info(f"Scraping page {page_number}: {current_url}")
-                        response = await self.async_make_request(current_url)
-                        soup = BeautifulSoup(response.text, 'html.parser')
-                        product_links = soup.select('a.t4s-full-width-link')
+        while True:
+            try:
+                self.log_info(f"Scraping page {page_number}: {current_url}")
+                response = await self.async_make_request(current_url)
+                soup = BeautifulSoup(response.text, 'html.parser')
+                product_links = soup.select('a.t4s-full-width-link')
 
-                        if not product_links:
-                            self.log_info(f"No products found on page {page_number}. Stopping.")
-                            break
+                if not product_links:
+                    self.log_info(f"No products found on page {page_number}. Stopping.")
+                    break
 
-                        for link_tag in product_links:
-                            href = link_tag.get('href')
-                            if href:
-                                product_url = f"{self.base_url}{href}"
-                                all_product_links.append(product_url)
+                for link_tag in product_links:
+                    href = link_tag.get('href')
+                    if href:
+                        product_url = f"{self.base_url}{href}"
+                        all_product_links.append(product_url)
 
-                        page_number += 1
-                        current_url = f"{url}?page={page_number}" if "?" not in url else f"{url}&page={page_number}"
+                page_number += 1
+                current_url = f"{url}?page={page_number}" if "?" not in url else f"{url}&page={page_number}"
 
-                    except Exception as e:
-                        self.log_error(f"Error scraping page {page_number}: {e}")
-                        break
+            except Exception as e:
+                self.log_error(f"Error scraping page {page_number}: {e}")
+                break
 
-                # Debug: Print the collected links
-                self.log_info(f"Collected {len(all_product_links)} product links.")
-                return all_product_links
+        # Debug: Print the collected links
+        self.log_info(f"Collected {len(all_product_links)} product links.")
+        return all_product_links
         
     async def scrape_category(self, url):
         all_products = []

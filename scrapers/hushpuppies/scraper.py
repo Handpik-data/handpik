@@ -109,26 +109,20 @@ class HushpuppiesScraper(BaseScraper):
                     sale_text = sale_price_tag.get_text(strip=True) if sale_price_tag else None
                     compare_text = compare_price_tag.get_text(strip=True) if compare_price_tag else None
 
-                    def extract_price(price_str):
+                    def clean_price(price_str):
                         if not price_str:
                             return None
-                        price_str = re.sub(r'(Rs|₹|\$|€|£)\.?\s*', '', price_str)
                         return re.sub(r'[^\d.,]', '', price_str)
 
-                    sale_price = extract_price(sale_text)
-                    original_price = extract_price(compare_text)
+                    sale_price = clean_price(sale_text)
+                    original_price = clean_price(compare_text) or sale_price
 
-                    price_text_for_currency = compare_text or sale_text
-                    if price_text_for_currency:
-                        match = re.search(r'(Rs|₹|\$|€|£)', price_text_for_currency)
-                        currency = match.group(1) if match else None
-                    else:
-                        currency = None
+                    product_data['original_price'] = original_price
+                    product_data['sale_price'] = sale_price if compare_text else None
 
-                    if sale_price and original_price:
-                        product_data['original_price'] = original_price
-                        product_data['sale_price'] = sale_price
-                        product_data['currency'] = currency
+                    # Extract currency (optional)
+                    currency_match = re.search(r'(Rs|₹|\$|€|£)', compare_text or sale_text or '')
+                    product_data['currency'] = currency_match.group(1) if currency_match else None
                 else:
                     product_data['original_price'] = None
                     product_data['sale_price'] = None
@@ -138,6 +132,7 @@ class HushpuppiesScraper(BaseScraper):
                 product_data['sale_price'] = None
                 product_data['currency'] = None
                 print(f"Error extracting price data: {e}")
+
 
             # 1–4. Extract color options, size options, and construct variants
             try:
@@ -282,48 +277,48 @@ class HushpuppiesScraper(BaseScraper):
 
 
     async def scrape_products_links(self, url):
-        all_product_links = set()
-        page_number = 1
-        current_url = url
+            all_product_links = set()
+            page_number = 1
+            current_url = url
 
-        while True:
-            try:
-                self.log_info(f"Scraping page {page_number}: {current_url}")
-                response = await self.async_make_request(current_url)
+            while True:
+                try:
+                    self.log_info(f"Scraping page {page_number}: {current_url}")
+                    response = await self.async_make_request(current_url)
 
-                soup = BeautifulSoup(response.text, 'html.parser')
+                    soup = BeautifulSoup(response.text, 'html.parser')
 
-                # Find all <a> tags with class 'product-card__media'
-                product_links = soup.select('a.product-card__media[href^="/products/"]')
+                    # Find all <a> tags with class 'product-card__media'
+                    product_links = soup.select('a.product-card__media[href^="/products/"]')
 
-                if not product_links:
-                    self.log_info(f"No product links found on page {page_number}. Stopping.")
+                    if not product_links:
+                        self.log_info(f"No product links found on page {page_number}. Stopping.")
+                        break
+
+                    initial_count = len(all_product_links)
+
+                    for tag in product_links:
+                        href = tag.get('href')
+                        if href:
+                            product_url = f"{self.base_url}{href}" if href.startswith('/') else href
+                            all_product_links.add(product_url)
+
+                    if len(all_product_links) == initial_count:
+                        self.log_info("No new products found. Stopping.")
+                        break
+
+                    page_number += 1
+                    if "?" not in url:
+                        current_url = f"{url}?page={page_number}"
+                    else:
+                        current_url = f"{url}&page={page_number}"
+
+                except Exception as e:
+                    self.log_error(f"Error scraping page {page_number}: {e}")
                     break
 
-                initial_count = len(all_product_links)
-
-                for tag in product_links:
-                    href = tag.get('href')
-                    if href:
-                        product_url = f"{self.base_url}{href}" if href.startswith('/') else href
-                        all_product_links.add(product_url)
-
-                if len(all_product_links) == initial_count:
-                    self.log_info("No new products found. Stopping.")
-                    break
-
-                page_number += 1
-                if "?" not in url:
-                    current_url = f"{url}?page={page_number}"
-                else:
-                    current_url = f"{url}&page={page_number}"
-
-            except Exception as e:
-                self.log_error(f"Error scraping page {page_number}: {e}")
-                break
-
-        self.log_info(f"Collected {len(all_product_links)} unique product links.")
-        return list(all_product_links)
+            self.log_info(f"Collected {len(all_product_links)} unique product links.")
+            return list(all_product_links)
 
     async def scrape_category(self, url):
             all_products = []
