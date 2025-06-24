@@ -9,11 +9,9 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import global_constants
 
-
-
 load_dotenv()
 
-genai.configure(api_key=os.getenv("AIzaSyB7ez22ZxESPwa3rPlDuFdAlrSwMB_SuyA"))
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 def generate_enhanced_description(image_url=None, text_description=None):
     
