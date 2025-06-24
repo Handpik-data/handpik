@@ -30,21 +30,6 @@ from scrapers.Amir_Adnan.scraper import AmirAdnan_Scrapper
 from scrapers.beechtree.scraper import Beechtree_Scrapper  
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def setup_logging():
     with open("utils/logging_config.json") as f:
         config = json.load(f)
