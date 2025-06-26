@@ -211,6 +211,12 @@ class ZeeWomanScraper(BaseScraper):
                 all_variant_combos.append(combo_dict)
 
             product_data["variants"] = all_variant_combos
+
+
+            breadcrumb = soup.find('nav', class_='t4s-pr-breadcrumb')
+
+            product_data['category'] = [a.get_text(strip=True) for a in breadcrumb.find_all('a', class_='t4s-dib') if a.get_text(strip=True).lower() != 'home']
+
         except Exception as e:
             self.log_error(f"Error scraping product data from {product_link}: {e}")   
         return product_data
@@ -269,6 +275,7 @@ class ZeeWomanScraper(BaseScraper):
             for url in category_urls:
                 products = await self.scrape_category(url)
                 final_data.extend(products)
+                break
             if final_data:
                 saved_path = await self.save_data(final_data)
                 if saved_path:
