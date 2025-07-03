@@ -56,8 +56,8 @@ class EgoScrapper(BaseScraper):
             'product_url': product_link,
             'variants': [],
             "attributes": {
-                        'breadcrumbs': None,
-                    },
+                'breadcrumbs': None,
+            },
             'raw_data': {},
         }
 
@@ -71,6 +71,68 @@ class EgoScrapper(BaseScraper):
                     product_data["title"] = product_title_tag.get_text(strip=True)
             except Exception as e:
                 self.log_debug(f"Exception occurred while scraping product's title: {e}")
+
+            try:
+                # ✅ Make request and parse product page
+                response = await self.async_make_request(product_link)
+                soup = BeautifulSoup(response.text, "html.parser")
+
+                # ✅ Extract product title
+                product_title = soup.title.string.strip() if soup.title else "Unknown Product"
+
+                main_category = None
+                sub_category = None
+
+                # ✅ Make request to homepage to extract categories from navigation menu
+                response_home = await self.async_make_request(self.base_url)
+                soup_home = BeautifulSoup(response_home.text, 'html.parser')
+
+                nav = soup_home.find('ul', {'id': 'siteNav'})
+                if nav:
+                    for li in nav.find_all('li', class_='lvl1', recursive=False):
+                        a_tag = li.find('a')
+                        if not a_tag:
+                            continue
+
+                        category_name = a_tag.get_text(strip=True)
+
+                        # ✅ Check for subcategories
+                        if 'parent' in li.get('class', []):
+                            sub_ul = li.find('ul')
+                            if sub_ul:
+                                for sub_li in sub_ul.find_all('li'):
+                                    sub_a = sub_li.find('a')
+                                    if sub_a:
+                                        sub_cat_name = sub_a.get_text(strip=True)
+                                        # ✅ Match subcategory with product link
+                                        if sub_cat_name.lower() in product_link.lower():
+                                            main_category = category_name
+                                            sub_category = sub_cat_name
+                                            break
+                            if main_category:
+                                break
+                        else:
+                            # ✅ Check if category name itself matches product link
+                            if category_name.lower() in product_link.lower():
+                                main_category = category_name
+                                break
+
+                # ✅ Build breadcrumb as list (excluding 'Home')
+                breadcrumb = []
+                if main_category:
+                    breadcrumb.append(main_category)
+                if sub_category:
+                    breadcrumb.append(sub_category)
+                breadcrumb.append(product_title)
+
+                # ✅ Save breadcrumb list in product_data['category']
+                product_data['category'] = breadcrumb
+
+
+            except Exception as e:
+                self.log_error(f"Error scraping PDP {product_link}: {str(e)}")
+                product_data['category'] = None
+
 
             try:
                 sku_element = (
@@ -117,6 +179,8 @@ class EgoScrapper(BaseScraper):
                 product_data['sale_price'] = None
                 product_data['currency'] = "PKR"
 
+        
+
             try:
                 image_links = soup.select('a.pr_photo') or soup.select('div.pr_thumbs_item a.gitem-img')
                 for a_tag in image_links:
@@ -155,18 +219,7 @@ class EgoScrapper(BaseScraper):
                 self.log_debug(f"Exception occurred while scraping stock availability: {e}")
                 product_data['availability'] = False
 
-            try:
-                breadcrumb_nav = soup.select_one('nav.page-width.breadcrumbs')
-                category = None
-                if breadcrumb_nav:
-                    breadcrumb_items = breadcrumb_nav.find_all(['a', 'span'], recursive=False)
-                    visible_items = [el for el in breadcrumb_items if el.name in ['a', 'span'] and 'symbol' not in el.get('class', [])]
-                    if len(visible_items) >= 2:
-                        category = visible_items[1].get_text(strip=True)
-                product_data['category'] = category
-            except Exception as e:
-                self.log_debug(f"Exception occurred while scraping category from breadcrumbs: {e}")
-                product_data['category'] = None
+
 
             try:
                 desc_div = soup.select_one('div.product-single__description.rte')
@@ -224,12 +277,12 @@ class EgoScrapper(BaseScraper):
                 product_data['raw_data']['shipping_policy'] = None
                 product_data['raw_data']['delivery_estimate'] = None
 
-          
-
         except Exception as e:
             self.log_error(f"Error scraping PDP {product_link}: {str(e)}")
 
         return product_data
+
+
 
    
     async def scrape_products_links(self, url):

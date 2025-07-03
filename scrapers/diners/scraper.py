@@ -16,7 +16,7 @@ import time
 
 
 class DinnerScraper(BaseScraper):
-    def __init__(self, proxies=None, request_delay=1):
+    def __init__(self, proxies=None, request_delay=0.1):
         super().__init__(
             base_url="https://diners.com.pk/",
             logger_name=Diner_Logger,
@@ -38,98 +38,117 @@ class DinnerScraper(BaseScraper):
         with open(filepath, 'r') as file:
             return list(set(line.strip() for line in file if line.strip()))
 
-    async def scrape_pdp(self, product_link):        
-        if product_link in self.all_product_links_:
-            return None
+    async def scrape_pdp(self, product_link):
+            if product_link in self.all_product_links_:
+                return None
 
-        self.all_product_links_.append(product_link)
-        product_data = {
-            'store_name': self.store_name,
-            'title': None,
-            'sku': None,
-            'description': None,
-            'currency': None,
-            'original_price': None,
-            'sale_price': None,
-            'images': [],
-            'brand': None,
-            'availability': None,
-            'category': None,
-            'product_url': product_link,
-            'variants': [],
-            'attributes': {},
-            'raw_data': {}
-        }
+            self.all_product_links_.append(product_link)
+            product_data = {
+                'store_name': self.store_name,
+                'title': None,
+                'sku': None,
+                'description': None,
+                'currency': None,
+                'original_price': None,
+                'sale_price': None,
+                'images': [],
+                'brand': None,
+                'availability': None,
+                'category': None,
+                'product_url': product_link,
+                'variants': [],
+                'attributes': {},
+                'raw_data': {}
+            }
 
-        try:
-            response = await self.async_make_request(product_link)
-            soup = BeautifulSoup(response.text, "html.parser")
-
-            # Product title
             try:
-                title_tag = soup.select_one('h1.productView-title span')
-                if title_tag:
-                    product_data['title'] = title_tag.get_text(strip=True)
-                else:
-                    product_data['title'] = None
-            except Exception as e:
-                product_data['title'] = None
-                print(f"Error extracting product title: {e}")
+                response = await self.async_make_request(product_link)
+                soup = BeautifulSoup(response.text, "html.parser")
 
-            # SKU
-            try:
-                sku_element = soup.select_one('div.productView-info-item span.productView-info-value')
-                if sku_element:
-                    product_data['sku'] = sku_element.get_text(strip=True)
-                else:
-                    product_data['sku'] = None
-            except Exception as e:
-                product_data['sku'] = None
-                print(f"Error extracting SKU: {e}")
+                # Title
+                try:
+                    title_tag = soup.select_one('h1.productView-title span')
+                    product_data['title'] = title_tag.get_text(strip=True) if title_tag else None
+                except Exception as e:
+                    print(f"Error extracting product title: {e}")
 
-            # Reviews and rating
-            review_data = {}
-            try:
-                review_div = soup.find('div', class_='jdgm-prev-badge')
-                if review_div:
-                    num_reviews = review_div.get('data-number-of-reviews', '0')
-                    review_data['reviews'] = int(num_reviews)
+                # SKU
+                try:
+                    sku_element = soup.select_one('div.productView-info-item span.productView-info-value')
+                    product_data['sku'] = sku_element.get_text(strip=True) if sku_element else None
+                except Exception as e:
+                    print(f"Error extracting SKU: {e}")
 
-                    stars_span = review_div.find('span', class_='jdgm-prev-badge__stars')
-                    review_data['star_rating'] = float(stars_span.get('data-score', '0')) if stars_span else None
-                else:
-                    review_data['reviews'] = 0
-                    review_data['star_rating'] = None
-            except Exception as e:
-                review_data['reviews'] = 0
-                review_data['star_rating'] = None
-                print(f"Error extracting review data: {e}")
+                try:
+                    homepage_response = await self.async_make_request(self.base_url)
+                    homepage_soup = BeautifulSoup(homepage_response.text, 'html.parser')
+                    found_path = []
 
-            # Store in raw_data
-            product_data['raw_data']['review_info'] = review_data
+                    def traverse_menu(li_tags, path):
+                        for li in li_tags:
+                            a_tag = li.find('a', href=True)
+                            if a_tag:
+                                abs_href = urljoin(self.base_url, a_tag['href'])
+                                text = a_tag.get_text(strip=True)
+                                current_path = path + [text]
 
-            # Product Type
-            try:
-                product_type = None
-                info_items = soup.select('div.productView-info-item')
-                for item in info_items:
-                    name = item.select_one('span.productView-info-name')
-                    value = item.select_one('span.productView-info-value')
-                    if name and value and 'Product Type' in name.get_text(strip=True):
-                        product_type = value.get_text(strip=True)
-                        break
-                product_data['category'] = product_type
-            except Exception as e:
-                product_data['category'] = None
-                print(f"Error extracting product type: {e}")
+                                if abs_href in product_link:
+                                    nonlocal found_path
+                                    found_path = current_path
+                                    return True
 
-                    # ----- Price Extraction (Updated for provided HTML structure) -----
-            try:
-                price_div = soup.find('div', class_='price price--medium price--on-sale')
+                            sub_ul = li.find('ul')
+                            if sub_ul:
+                                sub_li_tags = sub_ul.find_all('li', recursive=False)
+                                if traverse_menu(sub_li_tags, current_path):
+                                    return True
+                        return False
 
-                if price_div:
-                    original_price_tag = price_div.select_one('s.price-item--regular')
-                    sale_price_tag = price_div.select_one('span.price-item--sale')
+                    top_level_li = homepage_soup.find_all(
+                        'li',
+                        class_=lambda x: x and 'menu-lv-item' in x and 'menu-lv-1' in x
+                    )
+
+                    if traverse_menu(top_level_li, []):
+                        product_data['category'] = found_path  # ✅ save as list
+                    else:
+                        product_data['category'] = []
+
+                except Exception as e:
+                    print(f"Error extracting breadcrumb category path: {e}")
+
+
+                # Reviews
+                review_data = {}
+                try:
+                    review_div = soup.find('div', class_='jdgm-prev-badge')
+                    if review_div:
+                        num_reviews = review_div.get('data-number-of-reviews', '0')
+                        review_data['reviews'] = int(num_reviews)
+                        stars_span = review_div.find('span', class_='jdgm-prev-badge__stars')
+                        review_data['star_rating'] = float(stars_span.get('data-score', '0')) if stars_span else None
+                    else:
+                        review_data['reviews'] = 0
+                        review_data['star_rating'] = None
+                except Exception as e:
+                    print(f"Error extracting review data: {e}")
+                product_data['raw_data']['review_info'] = review_data
+
+                # Product Type → saved in attributes
+                try:
+                    info_items = soup.select('div.productView-info-item')
+                    for item in info_items:
+                        name = item.select_one('span.productView-info-name')
+                        value = item.select_one('span.productView-info-value')
+                        if name and value and 'Product Type' in name.get_text(strip=True):
+                            product_data['attributes']['product_type'] = value.get_text(strip=True)
+                            break
+                except Exception as e:
+                    print(f"Error extracting product type: {e}")
+
+                # Price
+                try:
+                    price_div = soup.find('div', class_='price price--medium price--on-sale')
 
                     def extract_price(text):
                         text = text.replace("From", "").strip()
@@ -138,150 +157,118 @@ class DinnerScraper(BaseScraper):
                         price = re.sub(r'[^\d.]', '', text)
                         return price, currency
 
-                    if original_price_tag and sale_price_tag:
-                        original, currency = extract_price(original_price_tag.get_text(strip=True))
-                        sale, _ = extract_price(sale_price_tag.get_text(strip=True))
-                        product_data["original_price"] = original
-                        product_data["sale_price"] = sale
-                        product_data["currency"] = currency
+                    if price_div:
+                        original_tag = price_div.select_one('s.price-item--regular')
+                        sale_tag = price_div.select_one('span.price-item--sale')
 
-                    elif sale_price_tag:
-                        sale, currency = extract_price(sale_price_tag.get_text(strip=True))
-                        product_data["original_price"] = sale
-                        product_data["sale_price"] = None
-                        product_data["currency"] = currency
+                        if original_tag and sale_tag:
+                            original, currency = extract_price(original_tag.get_text(strip=True))
+                            sale, _ = extract_price(sale_tag.get_text(strip=True))
+                            product_data['original_price'] = original
+                            product_data['sale_price'] = sale
+                            product_data['currency'] = currency
+                        elif sale_tag:
+                            sale, currency = extract_price(sale_tag.get_text(strip=True))
+                            product_data['original_price'] = sale
+                            product_data['sale_price'] = None
+                            product_data['currency'] = currency
+                except Exception as e:
+                    print(f"Error extracting price data: {e}")
 
-                    else:
-                        product_data["original_price"] = None
-                        product_data["sale_price"] = None
-                        product_data["currency"] = None
-                else:
-                    product_data["original_price"] = None
-                    product_data["sale_price"] = None
-                    product_data["currency"] = None
+                # Images
+                try:
+                    image_divs = soup.select('div.media[data-fancybox="images"]')
+                    image_imgs = soup.select('img[id^="product-featured-image-"]')
+
+                    for div in image_divs:
+                        href = div.get('href')
+                        if href:
+                            full_url = urljoin('https:', href)
+                            if full_url not in product_data['images']:
+                                product_data['images'].append(full_url)
+
+                    for img in image_imgs:
+                        src = img.get('src') or img.get('srcset')
+                        if src:
+                            full_url = urljoin('https:', src)
+                            if full_url not in product_data['images']:
+                                product_data['images'].append(full_url)
+                except Exception as e:
+                    print(f"Error extracting image URLs: {e}")
+
+                # Description
+                try:
+                    container = soup.select_one('div#tab-product-detail-mobile.toggle-content.show-mobile.is-active')
+                    if container:
+                        raw_html = container.decode_contents()
+                        soup_inner = BeautifulSoup(raw_html, 'html.parser')
+                        lines = []
+                        first_div = soup_inner.find('div')
+                        if first_div:
+                            lines.append(first_div.get_text(strip=True))
+                        for li in soup_inner.find_all('li'):
+                            lines.append(li.get_text(strip=True))
+                        product_data['description'] = '\n'.join(lines) if lines else None
+                except Exception as e:
+                    print(f"Error extracting description: {e}")
+
+                # Sizes → as variants
+                try:
+                    size_fieldset = soup.find('fieldset', {'data-product-attribute': 'set-rectangle'})
+                    if size_fieldset:
+                        size_options = size_fieldset.find_all('input', {'type': 'radio'})
+                        for option in size_options:
+                            size = option.get('value', '').strip()
+                            label = option.find_next_sibling('label')
+                            is_available = not (label and 'soldout' in label.get('class', []))
+                            product_data['variants'].append({
+                                'size': size,
+                                'availability': is_available
+                            })
+                except Exception as e:
+                    print(f"Error extracting sizes: {e}")
 
             except Exception as e:
-                product_data["original_price"] = None
-                product_data["sale_price"] = None
-                product_data["currency"] = None
-                print(f"Error extracting price data: {e}")
-            # Images
-            try:
-                image_divs = soup.select('div.media[data-fancybox="images"]')
-                image_imgs = soup.select('img[id^="product-featured-image-"]')
+                self.log_error(f"Error scraping PDP {product_link}: {str(e)}")
 
-                for div in image_divs:
-                    href = div.get('href')
-                    if href:
-                        full_url = urljoin('https:', href)
-                        if full_url not in product_data['images']:
-                            product_data['images'].append(full_url)
-
-                for img in image_imgs:
-                    src = img.get('src') or img.get('srcset')
-                    if src:
-                        full_url = urljoin('https:', src)
-                        if full_url not in product_data['images']:
-                            product_data['images'].append(full_url)
-            except Exception as e:
-                print(f"Error extracting image URLs: {e}")
-
-          # Description
-            try:
-                description_container = soup.select_one('div#tab-product-detail-mobile.toggle-content.show-mobile.is-active')
-                if description_container:
-                    raw_html = description_container.decode_contents()
-                    soup_inner = BeautifulSoup(raw_html, 'html.parser')
-
-                    lines = []
-
-                    # Extract warning/note text from the first <div> (if any)
-                    warning_div = soup_inner.find('div')
-                    if warning_div:
-                        lines.append(warning_div.get_text(strip=True))
-
-                    # Extract details from <ul><li>...
-                    li_items = soup_inner.find_all('li')
-                    for li in li_items:
-                        lines.append(li.get_text(strip=True))
-
-                    product_data['description'] = '\n'.join(lines) if lines else None
-                else:
-                    product_data['description'] = None
-            except Exception as e:
-                product_data['description'] = None
-                print(f"Error extracting description: {e}")
-      
-
-            # Sizes (✔️ Updated to store in "variants" with boolean "availability")
-            try:
-                size_fieldset = soup.find('fieldset', {'data-product-attribute': 'set-rectangle'})
-                if size_fieldset:
-                    size_options = size_fieldset.find_all('input', {'type': 'radio'})
-                    variants_list = []
-
-                    for option in size_options:
-                        size = option.get('value', '').strip()
-                        label = option.find_next_sibling('label')
-                        is_available = not (label and 'soldout' in label.get('class', []))
-
-                        variants_list.append({
-                            'size': size,
-                            'availability': is_available  # Boolean: True or False
-                        })
-
-                    product_data['variants'] = variants_list
-                else:
-                    product_data['variants'] = []
-                    self.log_debug("Size selection fieldset not found on the page.")
-            except Exception as e:
-                product_data['variants'] = []
-                print(f"Error extracting sizes: {e}")
+            return product_data
 
 
-
-        except Exception as e:
-            self.log_error(f"Error scraping PDP {product_link}: {str(e)}")
-
-        return product_data
-
-   
-   
 
 
     async def scrape_products_links(self, url):
-            all_product_links = []
+        all_product_links = []
 
-            # Clean URL
-            split_url = urlsplit(url)
-            url = urlunsplit((split_url.scheme, split_url.netloc, split_url.path, split_url.query, ''))
+        # Clean URL
+        split_url = urlsplit(url)
+        url = urlunsplit((split_url.scheme, split_url.netloc, split_url.path, split_url.query, ''))
 
-            try:
-                self.log_info(f"Scraping page 1: {url}")
-                response = await self.async_make_request(url)
+        try:
+            self.log_info(f"Scraping page 1: {url}")
+            response = await self.async_make_request(url)
 
-                soup = BeautifulSoup(response.text, 'html.parser')
+            soup = BeautifulSoup(response.text, 'html.parser')
 
-                # Match anchor tags with class 'card-link' and href starting with /products/
-                product_anchors = soup.select('a.card-link[href^="/products/"]')
+            # Match anchor tags with class 'card-link' and href starting with /products/
+            product_anchors = soup.select('a.card-link[href^="/products/"]')
 
-                if not product_anchors:
-                    self.log_info("No product links found on the first page.")
-                    return []
+            if not product_anchors:
+                self.log_info("No product links found on the first page.")
+                return []
 
-                for anchor in product_anchors:
-                    href = anchor.get('href')
-                    if href:
-                        product_url = urljoin(self.base_url, href)
-                        if product_url not in all_product_links:
-                            all_product_links.append(product_url)
+            for anchor in product_anchors:
+                href = anchor.get('href')
+                if href:
+                    product_url = urljoin(self.base_url, href)
+                    if product_url not in all_product_links:
+                        all_product_links.append(product_url)
 
-            except Exception as e:
-                self.log_error(f"Error scraping page: {e}")
+        except Exception as e:
+            self.log_error(f"Error scraping page: {e}")
 
-            self.log_info(f"Collected {len(all_product_links)} product link(s).")
-            return all_product_links
-      
+        self.log_info(f"Collected {len(all_product_links)} product link(s).")
+        return all_product_links
+         
     async def scrape_category(self, url):
             all_products = []
             all_products_links = await self.scrape_products_links(url)

@@ -12,7 +12,7 @@ from urllib3 import Retry
 from interfaces.base_scraper import BaseScraper
 from datetime import datetime
 from utils.LoggerConstants import GENERATION_LOGGER
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 import time
 
 
@@ -136,6 +136,29 @@ class GenerationScraper(BaseScraper):
             except Exception as e:
                 self.log_debug(f"Exception occurred while scraping prices: {e}")
 
+
+            try:
+                parsed = urlparse(product_link)
+
+                # Extract path and query
+                path = parsed.path.strip("/")  # e.g., 'collections/accessories/products/s25k9812-yellow'
+                if parsed.query:
+                    # Append the query string to the last segment
+                    path_parts = path.split("/")
+                    path_parts[-1] += f"?{parsed.query}"
+                else:
+                    path_parts = path.split("/")
+
+                # Save as list in category_path
+                product_data["category"] = path_parts
+
+               
+
+            except Exception as e:
+                self.log_debug(f"Error extracting category path list: {e}")
+                product_data["category_path"] = []
+                product_data["category"] = None
+
             variants = []
 
             try:
@@ -239,42 +262,41 @@ class GenerationScraper(BaseScraper):
 
 
     async def scrape_products_links(self, url):
-                all_product_links = []
-                page_number = 1
-                current_url = url
+            all_product_links = []
+            page_number = 1
+            current_url = url
 
-                while True:
-                    try:
-                        self.log_info(f"Scraping page {page_number}: {current_url}")
-                        response = await self.async_make_request(current_url)
-                  
+            while True:
+                try:
+                    self.log_info(f"Scraping page {page_number}: {current_url}")
+                    response = await self.async_make_request(current_url)
+                
 
-                        soup = BeautifulSoup(response.text, 'html.parser')
+                    soup = BeautifulSoup(response.text, 'html.parser')
 
-                        product_links = soup.select('a.ProductItem__ImageWrapper.desktop-img[href^="/collections/"]')
+                    product_links = soup.select('a.ProductItem__ImageWrapper.desktop-img[href^="/collections/"]')
 
-                        if not product_links:
-                            self.log_info(f"No product links found on page {page_number}. Stopping.")
-                            break
-
-                        for link_tag in product_links:
-                            href = link_tag.get('href')
-                            if href:
-                                product_url = urljoin(self.base_url, href)
-                                if product_url not in all_product_links:
-                                    all_product_links.append(product_url)
-
-                        page_number += 1
-                        current_url = f"{url}?page={page_number}" if "?" not in url else f"{url}&page={page_number}"
-
-                    except Exception as e:
-                        self.log_error(f"Error scraping page {page_number}: {e}")
+                    if not product_links:
+                        self.log_info(f"No product links found on page {page_number}. Stopping.")
                         break
 
-                self.log_info(f"Collected {len(all_product_links)} unique product links.")
-                return all_product_links
+                    for link_tag in product_links:
+                        href = link_tag.get('href')
+                        if href:
+                            product_url = urljoin(self.base_url, href)
+                            if product_url not in all_product_links:
+                                all_product_links.append(product_url)
 
+                    page_number += 1
+                    current_url = f"{url}?page={page_number}" if "?" not in url else f"{url}&page={page_number}"
 
+                except Exception as e:
+                    self.log_error(f"Error scraping page {page_number}: {e}")
+                    break
+
+            self.log_info(f"Collected {len(all_product_links)} unique product links.")
+            return all_product_links
+         
     async def scrape_category(self, url):
         all_products = []
         all_products_links = await self.scrape_products_links(url)

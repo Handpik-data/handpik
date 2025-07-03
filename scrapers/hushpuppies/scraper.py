@@ -240,6 +240,72 @@ class HushpuppiesScraper(BaseScraper):
                     'free_delivery': None,
                     'shipment_info': None
                 }
+            
+
+            try:
+                categories = []
+
+                # Extract breadcrumb categories
+                breadcrumb_items = soup.select("ol.breadcrumb__list li.breadcrumb__list-item a")
+                for a in breadcrumb_items:
+                    href = a.get("href", "")
+                    text = a.get_text(strip=True)
+                    if text and "javascript:history.back()" not in href and text.lower() != "home":
+                        categories.append(text)
+
+                # Extract product JSON and collections JSON using regex
+                product_json = None
+                collections_json = None
+                script_tags = soup.find_all('script')
+
+                for tag in script_tags:
+                    js_text = tag.text
+
+                    if "sizeChartsRelentless.product =" in js_text:
+                        match = re.search(r'sizeChartsRelentless\.product\s*=\s*(\{.*?\});', js_text, re.DOTALL)
+                        if match:
+                            product_json_str = match.group(1).strip()
+                            try:
+                                product_json = json.loads(product_json_str)
+                            except Exception as e_json:
+                                self.log_debug(f"Product JSON parsing error: {e_json}")
+
+                    if "sizeChartsRelentless.productCollections =" in js_text:
+                        match = re.search(r'sizeChartsRelentless\.productCollections\s*=\s*(\[.*?\]);', js_text, re.DOTALL)
+                        if match:
+                            collections_json_str = match.group(1).strip()
+                            try:
+                                collections_json = json.loads(collections_json_str)
+                            except Exception as e_json:
+                                self.log_debug(f"Collections JSON parsing error: {e_json}")
+
+                # Check product–collection relationship and add collections to categories
+                if product_json and collections_json:
+                    product_tags = set(product_json.get("tags", []))
+
+                    for collection in collections_json:
+                        collection_title = collection.get("title")
+                        rules = collection.get("rules", [])
+
+                        belongs = True
+                        for rule in rules:
+                            if rule["column"] == "tag":
+                                if rule["condition"] not in product_tags:
+                                    belongs = False
+                                    break
+
+                        if belongs and collection_title not in categories:
+                            categories.append(collection_title)
+
+                product_data['category'] = categories if categories else None
+
+            except Exception as e:
+                self.log_debug(f"Exception while extracting categories: {e}")
+                product_data['category'] = None
+
+
+
+
 
             # --- Product Description from <details> with 'Description' summary ---
             try:

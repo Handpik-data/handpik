@@ -196,6 +196,29 @@ class KhaddiScrapper(BaseScraper):
             except Exception as e:
                 return {'error': f'Exception occurred while extracting images: {str(e)}', 'product_link': product_link}
 
+
+            try:
+                breadcrumb_items = soup.select('ol.breadcrumb.asset-breadcrumb li.breadcrumb-item')
+                
+                # Exclude the last breadcrumb item
+                breadcrumb_items = breadcrumb_items[:-1]
+
+                # Extract text from each <span> inside <a>
+                breadcrumb_list = []
+                for li in breadcrumb_items:
+                    span = li.find('span')
+                    if span:
+                        text = span.get_text(strip=True)
+                        if text.lower() != "home":
+                            breadcrumb_list.append(text)
+
+                product_data["category"] = breadcrumb_list  # Save as list
+
+            except Exception as e:
+                self.log_debug(f"Error extracting breadcrumbs: {e}")
+                product_data["category"] = []
+
+
             # --- ATTRIBUTES / SPECIFICATIONS ---
             try:
                 current_section = None
@@ -244,41 +267,41 @@ class KhaddiScrapper(BaseScraper):
 
         return product_data
 
-        
+            
     async def scrape_products_links(self, url):
-                all_product_links = []
-                page_number = 1
-                start = 0
-                products_on_page = 49
+                    all_product_links = []
+                    page_number = 1
+                    start = 0
+                    products_on_page = 49
 
-                while True:
-                    try:
-                        paginated_url = f"{url}?start={start}&sz={products_on_page}"
-                        start = products_on_page
-                        products_on_page += products_on_page
-                        self.log_info(f"Scraping page {page_number}: {paginated_url}")
-                        response = await self.async_make_request(paginated_url)
+                    while True:
+                        try:
+                            paginated_url = f"{url}?start={start}&sz={products_on_page}"
+                            start = products_on_page
+                            products_on_page += products_on_page
+                            self.log_info(f"Scraping page {page_number}: {paginated_url}")
+                            response = await self.async_make_request(paginated_url)
 
-                        soup = BeautifulSoup(response.text, 'html.parser')
-                        link_tags = soup.find_all('a', class_='plp-tap-mobile plpRedirectPdp')
+                            soup = BeautifulSoup(response.text, 'html.parser')
+                            link_tags = soup.find_all('a', class_='plp-tap-mobile plpRedirectPdp')
 
-                        if not link_tags:
-                            self.log_info(f"No products found on page {page_number}, stopping.")
+                            if not link_tags:
+                                self.log_info(f"No products found on page {page_number}, stopping.")
+                                break
+
+                            for tag in link_tags:
+                                if tag.has_attr('href'):
+                                    product_url = urljoin(self.base_url, tag['href'])
+                                    if product_url not in all_product_links:
+                                        all_product_links.append(product_url)
+
+                            page_number += 1
+
+                        except Exception as e:
+                            self.log_error(f"Error scraping page {page_number}: {e}")
                             break
 
-                        for tag in link_tags:
-                            if tag.has_attr('href'):
-                                product_url = urljoin(self.base_url, tag['href'])
-                                if product_url not in all_product_links:
-                                    all_product_links.append(product_url)
-
-                        page_number += 1
-
-                    except Exception as e:
-                        self.log_error(f"Error scraping page {page_number}: {e}")
-                        break
-
-                return all_product_links
+                    return all_product_links
  
     async def scrape_category(self, url):
         all_products = []
