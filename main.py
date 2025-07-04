@@ -13,21 +13,6 @@ from scrapers.sanasafinaz.scraper import SanaSafinazScraper
 from scrapers.saeedghani.scraper import SaeedGhaniScraper
 from scrapers.cambridgeshop.scraper import CambridgeShopScraper
 from scrapers.sulafah.scraper import SulafahScraper
-from scrapers.EgoScraper.scraper import EgoScrapper  
-from scrapers.almirah.scraper import almirahscraper 
-from scrapers.ImageScraper.scraper import ImageScraper  
-from scrapers.ethinic.scraper import EthinicScraper  
-from scrapers.generations.scraper import GenerationScraper  
-from scrapers.hushpuppies.scraper import HushpuppiesScraper  
-from scrapers.Ismailfareed.scraper import ismailfareedscaper 
-from scrapers.chinyere.scraper import chinyerescraper  
-from scrapers.alkaram.scraper import AlkaramScraper  
-from scrapers.khaddi_scrapper.scraper import KhaddiScrapper  
-from scrapers.diners.scraper import DinnerScraper  
-from scrapers.nakoosh.scraper import nakoosh_Scrapper  
-from scrapers.insigma.scraper import insigma_scraper  
-from scrapers.Amir_Adnan.scraper import AmirAdnan_Scrapper  
-from scrapers.beechtree.scraper import Beechtree_Scrapper  
 
 
 def setup_logging():
@@ -49,25 +34,7 @@ async def main():
         SanaSafinazScraper(),
         SaeedGhaniScraper(),
         CambridgeShopScraper(),
-        SulafahScraper(),
-        EgoScrapper(),
-        almirahscraper(),
-        ImageScraper(),
-        EthinicScraper(),
-        GenerationScraper(),
-        HushpuppiesScraper(),
-        ismailfareedscaper(),
-        chinyerescraper(),
-        AlkaramScraper(),
-        KhaddiScrapper(),
-        DinnerScraper(),
-        nakoosh_Scrapper(),
-        insigma_scraper(),
-        AmirAdnan_Scrapper(),
-        Beechtree_Scrapper()
-
-
-
+        SulafahScraper()
     ]
     tasks = [scraper.scrape_data() for scraper in scrapers]
     results = await asyncio.gather(*tasks, return_exceptions=True)
