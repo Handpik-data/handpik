@@ -47,7 +47,7 @@ class SpeedSportsScraper(BaseScraper):
             'images': [],
             'brand': None,
             'availability': None,
-            'category': None,
+            'category': [],
             'product_url': product_link,
             'variants': [],
             'attributes': {},
@@ -156,6 +156,13 @@ class SpeedSportsScraper(BaseScraper):
                     self.log_debug(f"Error parsing variants JSON: {e}")
 
             product_data['variants'] = variants_data
+            
+            try:
+                breadcrumb_links = soup.select('nav.t4s-pr-breadcrumb > a')
+                next_after_home = breadcrumb_links[1].get_text(strip=True) if len(breadcrumb_links) > 1 else None
+                product_data['category'] = [next_after_home] if next_after_home else []
+            except Exception as e:
+                    self.log_debug(f"Error scraping product's category: {e}")
 
         except Exception as e:
             self.log_error(f"Error scraping product data from {product_link}: {e}")

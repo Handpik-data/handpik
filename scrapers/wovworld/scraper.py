@@ -5,6 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 from interfaces.base_scraper import BaseScraper
 from datetime import datetime
+from urllib.parse import urlparse
 from utils.LoggerConstants import WOVWORLD_LOGGER
 
 class WovWorldScraper(BaseScraper):
@@ -46,7 +47,7 @@ class WovWorldScraper(BaseScraper):
             'images': [],
             'brand': None,
             'availability': None,
-            'category': None,
+            'category': [],
             'product_url': product_link,
             'variants': [],
             'attributes': {},
@@ -118,6 +119,16 @@ class WovWorldScraper(BaseScraper):
                     if photo_url:
                         photo_url = f"https:{photo_url}" if photo_url.startswith('//') else photo_url
                         product_data['images'].append(photo_url)
+
+            parsed = urlparse(product_link)
+
+            path_parts = parsed.path.strip("/").split("/")
+
+            if "collections" in path_parts:
+                index = path_parts.index("collections")
+                if index + 1 < len(path_parts):
+                    collection_name = path_parts[index + 1]
+                    product_data['category'] = [collection_name]
         except Exception as e:
             self.log_error(f"Error scraping product data from {product_link}: {e}")   
         return product_data

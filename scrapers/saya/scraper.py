@@ -55,7 +55,7 @@ class SayaScraper(BaseScraper):
             'images': [],
             'brand': None,
             'availability': None,
-            'category': None,
+            'category': [],
             'product_url': product_link,
             'variants': [],
             'attributes': {},
@@ -138,7 +138,7 @@ class SayaScraper(BaseScraper):
                     if "var product =" in content:
                         match = re.search(r'"vendor"\s*:\s*"([^"]+)"', content)
                         if match:
-                            product_data["category"] = match.group(1)
+                            product_data["category"] = [match.group(1)]
                         break
             except Exception as e:
                 self.log_debug(f"Exception occured while scraping product's category : {e}")

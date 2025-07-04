@@ -48,7 +48,7 @@ class ZeeWomanScraper(BaseScraper):
             'images': [],
             'brand': None,
             'availability': None,
-            'category': None,
+            'category': [],
             'product_url': product_link,
             'variants': [],
             'attributes': {},

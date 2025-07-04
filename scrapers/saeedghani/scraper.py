@@ -55,7 +55,7 @@ class SaeedGhaniScraper(BaseScraper):
             'images': [],
             'brand': None,
             'availability': None,
-            'category': None,
+            'category': [],
             'product_url': product_link,
             'variants': [],
             'attributes': {},
@@ -128,6 +128,13 @@ class SaeedGhaniScraper(BaseScraper):
                     product_data['images'] = ['https:' + link if link.startswith('//') else link for link in image_links]
                 except Exception as e:
                     self.log_debug(f"Exception occured while scraping product's images : {e}")
+
+                try:
+                    breadcrumb_links = soup.select('div.breadcrumb a')
+                    next_after_home = breadcrumb_links[1].get_text(strip=True) if len(breadcrumb_links) > 1 else None
+                    product_data['category'] = [next_after_home] if next_after_home else []
+                except Exception as e:
+                    self.log_debug(f"Exception occured while scraping product's category : {e}")
         
             
         except Exception as e:

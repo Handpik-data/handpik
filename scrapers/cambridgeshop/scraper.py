@@ -53,7 +53,7 @@ class CambridgeShopScraper(BaseScraper):
             'images': [],
             'brand': None,
             'availability': None,
-            'category': None,
+            'category': [],
             'product_url': product_link,
             'variants': [],
             'attributes': {},
@@ -145,7 +145,17 @@ class CambridgeShopScraper(BaseScraper):
             
             except Exception as e:
                     self.log_debug(f"Exception occured while scraping product's description : {e}")
+
+            try:
+                breadcrumb_links = soup.select('nav.t4s-pr-breadcrumb > a')
+                next_after_home = breadcrumb_links[1].get_text(strip=True) if len(breadcrumb_links) > 1 else None
+
+                product_data['category'] = [next_after_home] if next_after_home else []
+
+            except Exception as e:
+                    self.log_debug(f"Exception occured while scraping product's category : {e}")
             
+                        
         except Exception as e:
             self.log_error(f"An error occurred while scraping PDP: {e}")
         
@@ -183,6 +193,7 @@ class CambridgeShopScraper(BaseScraper):
        
                 page_number += 1
                 current_url = f"{url}?page={page_number}" if "?" not in url else f"{url}&page={page_number}"
+                break
                 
             except Exception as e:
                 self.log_error(f"Error scraping page {page_number}: {e}")
@@ -197,6 +208,7 @@ class CambridgeShopScraper(BaseScraper):
             pdp_data = await self.scrape_pdp(product_link)
             if pdp_data is not None:
                 all_products.append(pdp_data)
+                break
         
         return all_products
     
@@ -209,6 +221,7 @@ class CambridgeShopScraper(BaseScraper):
             for url in category_urls:
                 products = await self.scrape_category(url)
                 final_data.extend(products)
+                break
             if final_data:
                 saved_path = await self.save_data(final_data)
                 if saved_path:

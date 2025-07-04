@@ -49,7 +49,7 @@ class SapphireScraper(BaseScraper):
             'images': [],
             'brand': None,
             'availability': None,
-            'category': None,
+            'category': [],
             'product_url': product_link,
             'variants': [],
             'attributes': {},
@@ -102,7 +102,7 @@ class SapphireScraper(BaseScraper):
                                     product_data["sku"] = p.get("id", product_data["sku"])
                                     if not product_data['title'] and product_data['title'] == "":
                                         product_data["title"] = p.get("name", product_data["title"])
-                                    product_data["category"] = p.get("category", product_data["category"])
+                                    product_data["category"] = [p.get("category", product_data["category"])]
                                     price_str = p.get("price")
                                     try:
                                         if price_str and not product_data['original_price'] and product_data['original_price'] == "":
@@ -164,6 +164,9 @@ class SapphireScraper(BaseScraper):
                         })
 
             product_data["variants"] = all_sizes
+
+            if not isinstance(product_data['category'], list):
+                product_data['category'] = [product_data['category']]
         except Exception as e:
             self.log_debug(f"Exception occured while parsing variants : {e}")
 

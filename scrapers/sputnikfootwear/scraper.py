@@ -47,7 +47,7 @@ class SputnikFootWearScraper(BaseScraper):
             'images': [],
             'brand': None,
             'availability': None,
-            'category': None,
+            'category': [],
             'product_url': product_link,
             'variants': [],
             'attributes': {},
@@ -73,7 +73,7 @@ class SputnikFootWearScraper(BaseScraper):
 
             product_data['title'] = product_json.get('title')
             product_data['brand'] = product_json.get('vendor')
-            product_data['category'] = product_json.get('type')
+            product_data['category'] = [product_json.get('type')]
 
 
             if 'price' in product_json:

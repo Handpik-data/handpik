@@ -48,7 +48,7 @@ class ShafferScraper(BaseScraper):
             'images': [],
             'brand': None,
             'availability': None,
-            'category': None,
+            'category': [],
             'product_url': product_link,
             'variants': [],
             'attributes': {},
@@ -66,15 +66,6 @@ class ShafferScraper(BaseScraper):
                 product_data["title"] = h1_tag.get_text(strip=True) if h1_tag else None
             except Exception as e:
                 self.log_debug(f"Exception occured while scraping product's titles : {e}")
-
-            try:
-                canonical = soup.find("link", rel="canonical")
-                if canonical and canonical.get("href"):
-                    url_parts = canonical["href"].rstrip("/").split("/")
-                    handle = url_parts[-1].split("?")[0]
-                    product_data["category"] = handle
-            except Exception as e:
-                self.log_debug(f"Exception occured while scraping product's category : {e}")
 
             try:
                 brand_tag = soup.find("p", class_="underlined-link--no-offset")
@@ -132,6 +123,12 @@ class ShafferScraper(BaseScraper):
             except Exception as e:
                 self.log_debug(f"Exception occured while scraping product's availability : {e}")
 
+            try:
+                breadcrumb_links = soup.select('ul.breadcrumbs__list a')
+                next_after_home = breadcrumb_links[1].get_text(strip=True) if len(breadcrumb_links) > 1 else None
+                product_data['category'] = [next_after_home] if next_after_home else []
+            except Exception as e:
+                self.log_debug(f"Exception occured while scraping product's category : {e}")
         
 
         except Exception as e:

@@ -57,7 +57,7 @@ class SheepOfficialScraper(BaseScraper):
             'images': [],
             'brand': None,
             'availability': None,
-            'category': None,
+            'category': [],
             'product_url': product_link,
             'variants': [],
             'attributes': {},
@@ -165,9 +165,6 @@ class SheepOfficialScraper(BaseScraper):
                             brand_name = brand_info.get("name")
                             if brand_name:
                                 product_data["brand"] = brand_name
-                      
-                        if data_json.get("category"):
-                            product_data["category"] = data_json["category"]
                     elif isinstance(data_json, list):
                         for item in data_json:
                             if isinstance(item, dict):
@@ -177,8 +174,6 @@ class SheepOfficialScraper(BaseScraper):
                                         brand_name = brand_info.get("name")
                                         if brand_name and not product_data['brand'] and  product_data['brand'] == "":
                                             product_data["brand"] = brand_name
-                                if item.get("category") and not product_data['category'] and  product_data['category'] == "":
-                                    product_data["category"] = item["category"]
                 except Exception as e:
                     self.log_debug(f"Exception occured while scraping product's ld script : {e}")
 
