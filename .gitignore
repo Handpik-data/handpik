@@ -4,3 +4,6 @@ venv/
 logs/*.log*
 scrapers/*/*.json
 *.lock
+jsondata/*.json
+oldjsondata/*.json
+enhanced_jsondata/*.json

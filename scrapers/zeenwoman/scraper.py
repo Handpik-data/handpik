@@ -275,7 +275,6 @@ class ZeeWomanScraper(BaseScraper):
             for url in category_urls:
                 products = await self.scrape_category(url)
                 final_data.extend(products)
-                break
             if final_data:
                 saved_path = await self.save_data(final_data)
                 if saved_path:

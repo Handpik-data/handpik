@@ -266,6 +266,15 @@
       "interval": 1,
       "backupCount": 30,
       "delay": true
+    },
+    "description_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/description.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
     }
   },
   "loggers": {
@@ -383,6 +392,10 @@
     },
     "NAKOOSH": {
       "handlers": ["nakoosh_handler"],
+      "level": "DEBUG"
+    },
+    "description": {
+      "handlers": ["description_handler"],
       "level": "DEBUG"
     }
   }
