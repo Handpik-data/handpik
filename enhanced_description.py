@@ -29,17 +29,16 @@ def setup_logging():
         config = json.load(f)
     logging.config.dictConfig(config)
 
-def generate_enhanced_description(image_urls=None, text_description=None, title=None, category=None, colors=None):
+def generate_enhanced_description(product_data):
     model = genai.GenerativeModel(global_constants.GEMINI_MODEL,
                                   system_instruction=global_constants.SYSTEM_PROMPT)
     
     content_parts = []
-    
-    max_images = 5
     processed_images = 0
+    image_urls = product_data.get('images', [])
     
     if image_urls:
-        for img_url in image_urls[:max_images]:
+        for img_url in image_urls:
             try:
                 response = requests.get(img_url, timeout=10)
                 response.raise_for_status()
@@ -68,21 +67,34 @@ def generate_enhanced_description(image_urls=None, text_description=None, title=
             except Exception as e:
                 logger.error(f"Image processing error ({img_url}): {str(e)}", exc_info=True)
     
-    text_prompt = "Generate enhanced product description based on:\n"
-    if title:
-        text_prompt += f"Title: {title}\n"
-    if text_description:
-        text_prompt += f"Existing Description: {text_description}\n"
-    if category:
-        category_str = ", ".join(category)
-        text_prompt += f"Category: {category_str}\n"
-    if colors:
-        colors_str = ", ".join(colors)
-        text_prompt += f"Available Colors: {colors_str}\n"
-    
-    text_prompt += f"Processed {processed_images} product images\n\n"
-    
-    content_parts.append(text_prompt)
+        text_prompt = "Generate enhanced product description based on:\n"
+        
+        fields_to_include = [
+            'store_name', 'title', 'description', 'category', 'original_price', 
+            'sale_price', 'brand', 'availability', 'variants', 'attributes'
+        ]
+        
+        for field in fields_to_include:
+            value = product_data.get(field)
+            if value:
+                if isinstance(value, dict):
+                    value = ', '.join(f"{k}: {v}" for k, v in value.items())
+                
+                elif isinstance(value, list) and all(isinstance(item, dict) for item in value):
+                    value = '; '.join(
+                        ', '.join(f"{k}: {v}" for k, v in item.items()) 
+                        for item in value
+                    )
+                
+                elif isinstance(value, list):
+                    value = ', '.join(map(str, value))
+                text_prompt += f"{field.replace('_', ' ').title()}: {value}\n"
+        
+        text_prompt += f"\nProcessed {processed_images} product images\n"
+        logger.info(f"Generated prompt for product {product_data.get('product_url')}:\n{text_prompt}")
+
+        content_parts.append(text_prompt)
+
     
     try:
         response = model.generate_content(content_parts)
@@ -114,22 +126,8 @@ def generate_enhanced_description(image_urls=None, text_description=None, title=
 def process_single_product(product, index, total_products):
     product_id = product.get('product_url', f"Product#{index+1}")
     logger.info(f"Processing product {index+1}/{total_products}: {product_id}")
-    
-    images = product.get('images', [])
-    text_desc = product.get('description')
-    title = product.get('title')
-    category = product.get('category') or []
-    variants = product.get('variants', [])
-    colors = list(set(variant.get("Color") for variant in variants if variant.get("Color")))
-    
     try:
-        enhanced_desc = generate_enhanced_description(
-            image_urls=images,
-            text_description=text_desc,
-            title=title,
-            category=category,
-            colors=colors 
-        )
+        enhanced_desc = generate_enhanced_description(product)
         product['enhanced_description'] = enhanced_desc
     except Exception as e:
         logger.error(f"Error processing product {product_id}: {str(e)}", exc_info=True)
@@ -155,7 +153,7 @@ def process_json_files():
             continue
             
         total_products = len(products)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
             futures = []
             for idx, product in enumerate(products):
                 futures.append(

@@ -275,6 +275,15 @@
       "interval": 1,
       "backupCount": 30,
       "delay": true
+    },
+    "elastic_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/elastic.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
     }
   },
   "loggers": {
@@ -396,6 +405,10 @@
     },
     "description": {
       "handlers": ["description_handler"],
+      "level": "DEBUG"
+    },
+    "elastic": {
+      "handlers": ["elastic_handler"],
       "level": "DEBUG"
     }
   }

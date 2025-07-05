@@ -68,7 +68,6 @@ class BaseScraper(ABC):
 
     def _throttle_request(self, url, attempt):
         time_delay = self.request_delay * (0.8 + 0.4 * random.random())
-        self.log_info(f"Attempt {attempt+1} for url {url} throttle request time {time_delay}")
         time.sleep(time_delay)
 
     def make_request(self, url, method='GET'):
@@ -77,7 +76,6 @@ class BaseScraper(ABC):
         attempt = 0
 
         while attempt < max_attempts:
-            self.log_info(f"Attempt {attempt+1} for url {url}")
             self._throttle_request(url,attempt)
             headers = self.headers
             headers['User-Agent'] = self._get_random_user_agent()
