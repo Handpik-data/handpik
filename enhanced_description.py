@@ -15,7 +15,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 import google
 
 load_dotenv()
-genai.configure(api_key="AIzaSyBA-1H3bLxk5ixXmsifCDZE9sTwkBeAkEk")
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 JSON_DIR = os.path.join(SCRIPT_DIR, 'jsondata')
