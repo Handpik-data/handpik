@@ -11,9 +11,11 @@ from utils.LoggerConstants import ENHANCED_DESCRIPTION_LOGGER
 import global_constants
 import logging.config
 import concurrent.futures
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+import google
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+genai.configure(api_key="AIzaSyBA-1H3bLxk5ixXmsifCDZE9sTwkBeAkEk")
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 JSON_DIR = os.path.join(SCRIPT_DIR, 'jsondata')
@@ -29,6 +31,11 @@ def setup_logging():
         config = json.load(f)
     logging.config.dictConfig(config)
 
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=2, max=30),
+    retry=retry_if_exception_type(google.api_core.exceptions.InternalServerError)
+)
 def generate_enhanced_description(product_data):
     model = genai.GenerativeModel(global_constants.GEMINI_MODEL,
                                   system_instruction=global_constants.SYSTEM_PROMPT)
@@ -40,8 +47,23 @@ def generate_enhanced_description(product_data):
     if image_urls:
         for img_url in image_urls:
             try:
-                response = requests.get(img_url, timeout=10)
-                response.raise_for_status()
+                USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+                headers = {"User-Agent": USER_AGENT}
+                urls_to_try = [img_url]
+                if '?' in img_url:
+                    urls_to_try.append(img_url.split('?')[0])
+                response = None
+                for attempt_url in urls_to_try:
+                    try:
+                        response = requests.get(attempt_url, headers=headers, timeout=30)
+                        response.raise_for_status()
+                        break 
+                    except Exception as e:
+                        logger.warning(f"Attempt failed ({attempt_url}): {str(e)}")
+                
+                if not response:
+                    logger.error(f"All download attempts failed for: {img_url}")
+                    continue
                 
                 content_type = response.headers.get('Content-Type', '').split(';')[0]
                 if not content_type:
@@ -91,7 +113,6 @@ def generate_enhanced_description(product_data):
                 text_prompt += f"{field.replace('_', ' ').title()}: {value}\n"
         
         text_prompt += f"\nProcessed {processed_images} product images\n"
-        logger.info(f"Generated prompt for product {product_data.get('product_url')}:\n{text_prompt}")
 
         content_parts.append(text_prompt)
 
@@ -115,10 +136,12 @@ def generate_enhanced_description(product_data):
         sum_completion_tokens = sum_completion_tokens + token_usage['completion_tokens']
         sum_total_tokens = sum_total_tokens + token_usage['total_tokens']
         
-        logger.info(f"Token usage: {token_usage}")
 
         return response.text
-            
+    
+    except google.api_core.exceptions.InternalServerError as e:
+        logger.warning(f"Google server error: {str(e)} - Retrying...")
+        raise 
     except Exception as e:
         logger.error(f"Generation failed: {str(e)}", exc_info=True)
         return None
@@ -139,6 +162,9 @@ def process_json_files():
     for filename in os.listdir(JSON_DIR):
         if not filename.endswith('.json'):
             continue
+        if filename == "cambridgeshop.json" or filename == "saeedghani.json":
+            logger.warning(f"Store {filename} already processed")
+            continue
             
         input_path = os.path.join(JSON_DIR, filename)
         output_path = os.path.join(ENHANCED_JSON_DIR, filename)
@@ -153,7 +179,7 @@ def process_json_files():
             continue
             
         total_products = len(products)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             futures = []
             for idx, product in enumerate(products):
                 futures.append(
