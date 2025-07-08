@@ -6,6 +6,7 @@ import logging
 from utils.LoggerConstants import ELASTIC
 import logging.config
 from dotenv import load_dotenv
+import hashlib 
 
 load_dotenv()
 
@@ -29,12 +30,27 @@ es = Elasticsearch(
 )
 
 if not es.indices.exists(index=elastic_index):
-    es.indices.create(index=elastic_index)
+    settings = {
+        "settings": {
+            "index.mapping.total_fields.limit": 2000
+        }
+    }
+    es.indices.create(index=elastic_index, **settings)
     logger.info(f"Created new index: {elastic_index}")
 else:
     logger.info(f"Using existing index: {elastic_index}")
 
 ENHANCED_JSON_DIR = "enhanced_jsondata"
+
+
+def remove_empty_keys(obj):
+    if isinstance(obj, dict):
+        return {k: remove_empty_keys(v) for k, v in obj.items() if k.strip() != ""}
+    elif isinstance(obj, list):
+        return [remove_empty_keys(item) for item in obj]
+    else:
+        return obj
+    
 
 def index_products_from_file(file_path):
     try:
@@ -47,10 +63,17 @@ def index_products_from_file(file_path):
         success_count = 0
         for i, product in enumerate(products):
             try:
+                if not product.get("product_url") or not product.get("title"):
+                    logger.warning(f"Skipping product {i} in {file_name}: Missing URL/title")
+                    continue
+
+                raw_id = f"{product['product_url']}-{product['title']}".encode('utf-8')
+                doc_id = hashlib.sha256(raw_id).hexdigest()
+
                 doc = {k: v for k, v in product.items() if v is not None}
                 
-                doc_id = f"{product['product_url']}".replace("/", "_")
-                response = es.index(index=elastic_index, id=doc_id, document=doc)
+                cleaned_doc = remove_empty_keys(doc)
+                response = es.index(index=elastic_index, id=doc_id, document=cleaned_doc)
                 
                 if response['result'] in ['created', 'updated']:
                     success_count += 1
