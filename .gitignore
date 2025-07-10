@@ -6,4 +6,3 @@ scrapers/*/*.json
 *.lock
 jsondata/*.json
 oldjsondata/*.json
-enhanced_jsondata/*.json
