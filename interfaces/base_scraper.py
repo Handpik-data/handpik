@@ -143,7 +143,7 @@ class BaseScraper(ABC):
                 os.path.dirname(__file__), '..'
             ))
             
-            json_dir = os.path.join(project_root, "jsondata")
+            json_dir = os.path.join(project_root, "haisum_jsondata")
             old_dir = os.path.join(project_root, "oldjsondata")
             os.makedirs(json_dir, exist_ok=True)
             os.makedirs(old_dir, exist_ok=True)
