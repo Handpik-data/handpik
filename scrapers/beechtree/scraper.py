@@ -155,6 +155,32 @@ class Beechtree_Scrapper(BaseScraper):
             except Exception as e:
                 self.log_debug(f"Exception occurred while scraping product description: {e}")
 
+                    # === Extract Categories (Tags) using product JSON ===
+            try:
+                tag_response = await self.async_make_request(product_link)
+                if tag_response.status_code == 200:
+                    tag_soup = BeautifulSoup(tag_response.text, 'html.parser')
+                    script_tag = tag_soup.find('script', string=re.compile(r'let product\s*=\s*{'))
+                    if script_tag:
+                        match = re.search(r'let product\s*=\s*({.*?});\s*document', script_tag.string, re.DOTALL)
+                        if match:
+                            product_json = json.loads(match.group(1))
+                            tags = product_json.get("tags", [])
+
+                            blacklist_keywords = [
+                                "SALE", "OFF", "NEW", "PKR", "PRICE", "UNDER", "S24", "S25", "W22",
+                                "DISCOUNT", "EDIT", "CAMPAIGN", "NA-", "BT-", "R-", "t_size_", "trouser_size",
+                                "Mix", "MIX", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"
+                            ]
+
+                            def is_category(tag):
+                                tag_upper = tag.upper()
+                                return not any(b in tag_upper for b in blacklist_keywords)
+
+                            clean_tags = [tag for tag in tags if is_category(tag)]
+                            product_data['category'] = clean_tags or None
+            except Exception as e:
+                self.log_debug(f"Exception occurred while extracting product categories: {e}")
             try:
                 variants = []
 
@@ -194,45 +220,45 @@ class Beechtree_Scrapper(BaseScraper):
 
 
     async def scrape_products_links(self, url):
-            all_product_links = []
-            page_number = 1
+        all_product_links = []
+        page_number = 1
 
-            # Strip URL fragment (e.g., #Pret)
-            split_url = urlsplit(url)
-            base_url = urlunsplit((split_url.scheme, split_url.netloc, split_url.path, split_url.query, ''))
+        # Strip URL fragment (e.g., #Pret)
+        split_url = urlsplit(url)
+        base_url = urlunsplit((split_url.scheme, split_url.netloc, split_url.path, split_url.query, ''))
 
-            while True:
-                try:
-                    current_url = f"{base_url}?page={page_number}" if "page=" not in base_url else base_url
-                    self.log_info(f"Scraping page {page_number}: {current_url}")
+        while True:
+            try:
+                current_url = f"{base_url}?page={page_number}" if "page=" not in base_url else base_url
+                self.log_info(f"Scraping page {page_number}: {current_url}")
 
-                    response = await self.async_make_request(current_url)
-                    
+                response = await self.async_make_request(current_url)
+                
 
-                    soup = BeautifulSoup(response.text, 'html.parser')
+                soup = BeautifulSoup(response.text, 'html.parser')
 
-                    # Select anchors linking to products via div.card_carousel
-                    product_anchors = soup.select('a[href^="/products/"] > div.card_carousel')
+                # Select anchors linking to products via div.card_carousel
+                product_anchors = soup.select('a[href^="/products/"] > div.card_carousel')
 
-                    if not product_anchors:
-                        self.log_info(f"No products found on page {page_number}. Stopping.")
-                        break
-
-                    for carousel_div in product_anchors:
-                        parent_anchor = carousel_div.find_parent('a', href=True)
-                        if parent_anchor:
-                            product_url = urljoin(self.base_url, parent_anchor['href'])
-                            if product_url not in all_product_links:
-                                all_product_links.append(product_url)
-
-                    page_number += 1
-
-                except Exception as e:
-                    self.log_error(f"Error scraping page {page_number}: {e}")
+                if not product_anchors:
+                    self.log_info(f"No products found on page {page_number}. Stopping.")
                     break
 
-            self.log_info(f"Collected total {len(all_product_links)} product link(s).")
-            return all_product_links
+                for carousel_div in product_anchors:
+                    parent_anchor = carousel_div.find_parent('a', href=True)
+                    if parent_anchor:
+                        product_url = urljoin(self.base_url, parent_anchor['href'])
+                        if product_url not in all_product_links:
+                            all_product_links.append(product_url)
+
+                page_number += 1
+
+            except Exception as e:
+                self.log_error(f"Error scraping page {page_number}: {e}")
+                break
+
+        self.log_info(f"Collected total {len(all_product_links)} product link(s).")
+        return all_product_links
 
 
 

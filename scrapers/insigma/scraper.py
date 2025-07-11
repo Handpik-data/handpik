@@ -98,20 +98,34 @@ class insigma_scraper(BaseScraper):
             try:
                 breadcrumb_div = soup.find('div', class_='breadcrumb')
                 if breadcrumb_div:
+                    # Find all <a> tags inside breadcrumb div excluding 'Home'
                     links = breadcrumb_div.find_all('a')
-                    if len(links) >= 2:
-                        second_link = links[1]
-                        product_data['category'] = second_link.get_text(strip=True)
-                        self.log_debug(f"Category extracted: {product_data['category']}")
+                    categories = []
+                    for link in links:
+                        text = link.get_text(strip=True)
+                        if text and text.lower() != "home":
+                            categories.append(text)
+                    
+                    # Also check for the last <span> that contains the product name/category
+                    last_span = breadcrumb_div.find_all('span')[-1] if breadcrumb_div.find_all('span') else None
+                    if last_span:
+                        span_text = last_span.get_text(strip=True)
+                        if span_text and span_text not in categories:
+                            categories.append(span_text)
+
+                    if categories:
+                        product_data['category'] = categories
+                        self.log_debug(f"Categories extracted: {product_data['category']}")
                     else:
                         product_data['category'] = None
-                        self.log_debug("Breadcrumb found, but not enough <a> tags to extract category.")
+                        self.log_debug("Breadcrumb found, but no categories extracted.")
                 else:
                     product_data['category'] = None
                     self.log_debug("No <div class='breadcrumb'> found.")
             except Exception as e:
-                self.log_debug(f"Exception while extracting category from breadcrumb: {e}")
+                self.log_debug(f"Exception while extracting categories from breadcrumb: {e}")
                 product_data['category'] = None
+
 
             try:
                 original_price_tag = soup.find('s', class_='price-item--regular')

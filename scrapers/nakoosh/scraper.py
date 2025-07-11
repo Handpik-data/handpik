@@ -144,7 +144,33 @@ class nakoosh_Scrapper(BaseScraper):
                 print(f"Error extracting prices: {e}")
 
 
-            # ----- Breadcrumbs -----
+
+            try:
+                breadcrumb_div = soup.select_one('div.breadcrumb')
+                breadcrumbs = []
+
+                if breadcrumb_div:
+                    # Get <a> tags (e.g. Home, New Arrivals)
+                    a_tags = breadcrumb_div.find_all('a')
+                    for a in a_tags:
+                        text = a.get_text(strip=True)
+                        if text.lower() != "home":
+                            breadcrumbs.append(text)
+
+                    # Get <span> tags (e.g. product name at the end)
+                    span_tags = breadcrumb_div.find_all('span')
+                    for span in span_tags:
+                        # Skip arrows or icons
+                        if not span.find('a') and not span.find('i'):
+                            text = span.get_text(strip=True)
+                            if text:
+                                breadcrumbs.append(text)
+
+                product_data['category'] = breadcrumbs if breadcrumbs else None
+
+            except Exception as e:
+                product_data['category'] = None
+                print(f"Error extracting category breadcrumbs: {e}")
             try:
                 breadcrumb_div = soup.select_one('div.breadcrumb')
                 breadcrumbs = []
@@ -261,8 +287,7 @@ class nakoosh_Scrapper(BaseScraper):
             print(link)
         
         return list(all_product_links)
-
-
+    
     async def scrape_category(self, url):
             all_products = []
             all_products_links = await self.scrape_products_links(url)

@@ -177,6 +177,61 @@ class EthinicScraper(BaseScraper):
             except Exception as e:
                 self.log_debug(f"Exception occurred while extracting product images and variants: {e}")
                 product_data["images"] = []
+            
+            try:
+          
+                title_tag = soup.find("title")
+                product_title = title_tag.get_text(strip=True) if title_tag else "Unknown Product"
+
+                # Fetch and parse the menu page
+                menu_response = await self.async_make_request("https://pk.ethnc.com")
+                menu_soup = BeautifulSoup(menu_response.text, "html.parser")
+
+                category_path = []
+
+                for main_li in menu_soup.find_all("li", class_="main_li"):
+                    main_a = main_li.find("a")
+                    if not main_a:
+                        continue
+
+                    main_category_name = main_a.get_text(strip=True)
+                    matched = False
+
+                    # Subcategories inside submenu
+                    submenu = main_li.find("div", class_="new_submenu_accordian")
+                    if submenu:
+                        for child_li in submenu.find_all("li", class_="child_li"):
+                            child_a = child_li.find("a")
+                            if child_a and "href" in child_a.attrs:
+                                sub_url = child_a["href"]
+                                if sub_url in product_link or sub_url.split("/")[-1] in product_link:
+                                    # Match found
+                                    category_path = [main_category_name, child_a.get_text(strip=True)]
+                                    matched = True
+                                    break
+
+                    # If no submenu, maybe it's a direct link
+                    elif "href" in main_a.attrs and main_a["href"] in product_link:
+                        category_path = [main_category_name]
+                        matched = True
+
+                    if matched:
+                        break
+
+                # Append product title as separate clean string
+                # Split by '–' or '-' if your titles have these as separators
+                if product_title:
+                    # Split by dash, remove empty, strip each part
+                    split_parts = [part.strip() for part in re.split(r'–|-', product_title) if part.strip()]
+                    category_path.extend(split_parts)
+
+                # Save as list
+                product_data['category'] = category_path
+
+            except Exception as e:
+                self.log_debug(f"Exception occurred while scraping category path: {e}")
+                product_data['category'] = None
+
 
             try:
                 # Short Description
@@ -275,48 +330,48 @@ class EthinicScraper(BaseScraper):
 
             
     async def scrape_products_links(self, url):
-            all_product_links = set()
-            page_number = 1
-            current_url = url
+        all_product_links = set()
+        page_number = 1
+        current_url = url
 
-            while True:
-                try:
-                    self.log_info(f"Scraping page {page_number}: {current_url}")
-                    response = await self.async_make_request(current_url)
-                    soup = BeautifulSoup(response.text, 'html.parser')
+        while True:
+            try:
+                self.log_info(f"Scraping page {page_number}: {current_url}")
+                response = await self.async_make_request(current_url)
+                soup = BeautifulSoup(response.text, 'html.parser')
 
-                    product_items = soup.select('li.product__item')
+                product_items = soup.select('li.product__item')
 
-                    if not product_items:
-                        self.log_info(f"No product items found on page {page_number}. Stopping.")
-                        break
-
-                    initial_count = len(all_product_links)
-
-                    for item in product_items:
-                        # Find the first <a> tag inside this <li> with href starting with /products/
-                        link_tag = item.find('a', href=True)
-                        if link_tag and link_tag['href'].startswith('/products/'):
-                            href = link_tag['href']
-                            product_url = f"{self.base_url}{href}" if href.startswith('/') else href
-                            all_product_links.add(product_url)
-
-                    if len(all_product_links) == initial_count:
-                        self.log_info("No new products found. Stopping.")
-                        break
-
-                    page_number += 1
-                    if "?" not in url:
-                        current_url = f"{url}?page={page_number}"
-                    else:
-                        current_url = f"{url}&page={page_number}"
-
-                except Exception as e:
-                    self.log_error(f"Error scraping page {page_number}: {e}")
+                if not product_items:
+                    self.log_info(f"No product items found on page {page_number}. Stopping.")
                     break
 
-            self.log_info(f"Collected {len(all_product_links)} unique product links.")
-            return list(all_product_links)
+                initial_count = len(all_product_links)
+
+                for item in product_items:
+                    # Find the first <a> tag inside this <li> with href starting with /products/
+                    link_tag = item.find('a', href=True)
+                    if link_tag and link_tag['href'].startswith('/products/'):
+                        href = link_tag['href']
+                        product_url = f"{self.base_url}{href}" if href.startswith('/') else href
+                        all_product_links.add(product_url)
+
+                if len(all_product_links) == initial_count:
+                    self.log_info("No new products found. Stopping.")
+                    break
+
+                page_number += 1
+                if "?" not in url:
+                    current_url = f"{url}?page={page_number}"
+                else:
+                    current_url = f"{url}&page={page_number}"
+
+            except Exception as e:
+                self.log_error(f"Error scraping page {page_number}: {e}")
+                break
+
+        self.log_info(f"Collected {len(all_product_links)} unique product links.")
+        return list(all_product_links)
 
         
     async def scrape_category(self, url):

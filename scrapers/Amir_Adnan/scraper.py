@@ -88,6 +88,33 @@ class AmirAdnan_Scrapper(BaseScraper):
                 self.log_debug(f"Exception occurred while scraping product's sku: {e}")
 
             try:
+                from urllib.parse import urlparse
+
+                parsed_url = urlparse(product_link)
+                path = parsed_url.path  # e.g., /collections/round-neck/products/basic-jersey-white-t-shirt-4
+
+                # Remove "/collections/" if present
+                if path.startswith('/collections/'):
+                    trimmed_path = path[len('/collections/'):]
+                else:
+                    trimmed_path = path.strip('/')
+
+                # Split and filter
+                breadcrumbs = [
+                    segment.replace('-', ' ').strip().title()
+                    for segment in trimmed_path.split('/')
+                    if segment and segment.lower() != 'products'  # Exclude 'products'
+                ]
+
+                # Save to category key
+                if breadcrumbs:
+                    product_data['category'] = breadcrumbs
+
+            except Exception as e:
+                self.log_debug(f"Exception occurred while processing category from URL: {e}")
+                product_data['category'] = None
+
+            try:
                 description_div = soup.select_one('div.product-single__description')
                 if description_div:
                     for br in description_div.find_all('br'):
@@ -183,43 +210,43 @@ class AmirAdnan_Scrapper(BaseScraper):
            
     
     async def scrape_products_links(self, url):
-                all_product_links = []
-                page_number = 1
+        all_product_links = []
+        page_number = 1
 
-                # Strip URL fragment (like #Pret)
-                split_url = urlsplit(url)
-                url = urlunsplit((split_url.scheme, split_url.netloc, split_url.path, split_url.query, ''))
-                current_url = url
+        # Strip URL fragment (like #Pret)
+        split_url = urlsplit(url)
+        url = urlunsplit((split_url.scheme, split_url.netloc, split_url.path, split_url.query, ''))
+        current_url = url
 
-                while True:
-                    try:
-                        self.log_info(f"Scraping page {page_number}: {current_url}")
-                        response = await self.async_make_request(current_url)
-                    
+        while True:
+            try:
+                self.log_info(f"Scraping page {page_number}: {current_url}")
+                response = await self.async_make_request(current_url)
+            
 
-                        soup = BeautifulSoup(response.text, 'html.parser')
+                soup = BeautifulSoup(response.text, 'html.parser')
 
-                        product_anchors = soup.select('a[href^="/collections/"][href*="/products/"]')
+                product_anchors = soup.select('a[href^="/collections/"][href*="/products/"]')
 
-                        if not product_anchors:
-                            self.log_info(f"No product links found on page {page_number}. Stopping.")
-                            break
+                if not product_anchors:
+                    self.log_info(f"No product links found on page {page_number}. Stopping.")
+                    break
 
-                        for anchor in product_anchors:
-                            product_url = urljoin(self.base_url, anchor['href'])
-                            if product_url not in all_product_links:
-                                all_product_links.append(product_url)
+                for anchor in product_anchors:
+                    product_url = urljoin(self.base_url, anchor['href'])
+                    if product_url not in all_product_links:
+                        all_product_links.append(product_url)
 
-                        page_number += 1
-                        current_url = f"{url}?page={page_number}" if "?" not in url else f"{url}&page={page_number}"
+                page_number += 1
+                current_url = f"{url}?page={page_number}" if "?" not in url else f"{url}&page={page_number}"
 
-                    except Exception as e:
-                        self.log_error(f"Error scraping page {page_number}: {e}")
-                        break
+            except Exception as e:
+                self.log_error(f"Error scraping page {page_number}: {e}")
+                break
 
-                self.log_info(f"Collected {len(all_product_links)} unique product links.")
-                return all_product_links  
-    
+        self.log_info(f"Collected {len(all_product_links)} unique product links.")
+        return all_product_links   
+
     async def scrape_category(self, url):
             all_products = []
             all_products_links = await self.scrape_products_links(url)

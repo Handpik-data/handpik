@@ -89,18 +89,19 @@ class ImageScraper(BaseScraper):
                 self.log_debug(f"Exception occurred while scraping breadcrumbs: {e}")
 
             try:
-                # Category
-                category_text = None
-                breadcrumb_tags = soup.select('a.breadcrumbs__link[aria-current="page"]')
-                for tag in breadcrumb_tags:
-                    href = tag.get('href', '')
-                    if '/collections/' in href:
-                        category_text = tag.get_text(strip=True)
-                        break
-                product_data['category'] = category_text
+                # Breadcrumbs
+                breadcrumb_items = soup.select('ul.breadcrumbs__list li.breadcrumbs__item a.breadcrumbs__link')
+                breadcrumbs = []
+                for crumb in breadcrumb_items:
+                    text = crumb.get_text(strip=True)
+                    if text and text.lower() != "home":  
+                        breadcrumbs.append(text)
+
+                if breadcrumbs:
+                    product_data['category'] = breadcrumbs  
             except Exception as e:
-                self.log_debug(f"Exception occurred while scraping category: {e}")
-                product_data['category'] = None
+                self.log_debug(f"Exception occurred while scraping breadcrumbs: {e}")
+
 
             try:
                 # SKU
