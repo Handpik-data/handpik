@@ -32,7 +32,8 @@ es = Elasticsearch(
 if not es.indices.exists(index=elastic_index):
     settings = {
         "settings": {
-            "index.mapping.total_fields.limit": 2000
+            "index.mapping.total_fields.limit": 2000,
+            "index.mapping.ignore_malformed": True
         }
     }
     es.indices.create(index=elastic_index, **settings)
@@ -40,7 +41,7 @@ if not es.indices.exists(index=elastic_index):
 else:
     logger.info(f"Using existing index: {elastic_index}")
 
-ENHANCED_JSON_DIR = "enhanced_jsondata"
+ENHANCED_JSON_DIR = "haisum_enhanced_data"
 
 
 def remove_empty_keys(obj):
@@ -51,6 +52,19 @@ def remove_empty_keys(obj):
     else:
         return obj
     
+def clean_attributes(doc,file_name): # for ethnic and alkaram
+    if 'attributes' in doc:
+        try:
+            if isinstance(doc['attributes'], str):
+                logger.error(f"Error in {file_name} for attributes")
+                doc['attributes'] = {}
+            elif not isinstance(doc['attributes'], dict):
+                doc['attributes'] = {}
+        except Exception as e:
+            logger.error(f"Error in {file_name} for attributes")
+            doc['attributes'] = {}
+    return doc
+
 
 def index_products_from_file(file_path):
     try:
@@ -71,7 +85,7 @@ def index_products_from_file(file_path):
                 doc_id = hashlib.sha256(raw_id).hexdigest()
 
                 doc = {k: v for k, v in product.items() if v is not None}
-                
+                doc = clean_attributes(doc,file_name)
                 cleaned_doc = remove_empty_keys(doc)
                 response = es.index(index=elastic_index, id=doc_id, document=cleaned_doc)
                 
