@@ -141,7 +141,8 @@ class BonanzaScraper(BaseScraper):
                         product_data['original_price'] = original_price
                         product_data['currency'] = currency
                     else:
-                        product_data['original_price'] = None
+                        original_price_tag = price_div.find('span', class_='money')
+                        product_data['original_price'], currency = extract_price(original_price_tag.get_text(strip=True))
 
                     # Extract sale price from <ins> tag
                     sale_price_tag = price_div.find('ins')
@@ -293,9 +294,6 @@ class BonanzaScraper(BaseScraper):
                 self.log_info(f"Scraping: {current_url}")
                 response = await self.async_make_request(current_url)
                 soup = BeautifulSoup(response.text, 'html.parser')
-                with open("output.html", "w", encoding="utf-8") as f:
-                    f.write(soup.prettify())
-                
                 main_div = soup.find('div', class_='sr4-main-collection-page')
 
                 if main_div:
@@ -337,10 +335,9 @@ class BonanzaScraper(BaseScraper):
     async def scrape_data(self):
         final_data = []
         try:
-            # category_urls = await self.get_unique_urls_from_file(
-            #     os.path.join(self.module_dir, "categories.txt")
-            # )
-            category_urls = ["https://bonanzasatrangi.com/collections/navi-collection-25"]
+            category_urls = await self.get_unique_urls_from_file(
+                os.path.join(self.module_dir, "categories.txt")
+            )
             for url in category_urls:
                 products = await self.scrape_category(url)
                 final_data.extend(products)
