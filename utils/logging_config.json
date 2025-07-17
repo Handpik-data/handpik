@@ -284,6 +284,15 @@
       "interval": 1,
       "backupCount": 30,
       "delay": true
+    },
+    "bonanza_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/bonanza.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
     }
   },
   "loggers": {
@@ -409,6 +418,10 @@
     },
     "elastic": {
       "handlers": ["elastic_handler"],
+      "level": "DEBUG"
+    },
+    "bonanza": {
+      "handlers": ["bonanza_handler"],
       "level": "DEBUG"
     }
   }
