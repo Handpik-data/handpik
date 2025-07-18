@@ -183,7 +183,6 @@ class KhaddiScrapper(BaseScraper):
             product_data['currency'] = currency
             product_data['original_price'] = original_price
             product_data['sale_price'] = sale_price
-            product_data['save_percent'] = save_percent
 
                 # Continue processing other fields rather than returning early
             # --- IMAGES ---
@@ -219,29 +218,24 @@ class KhaddiScrapper(BaseScraper):
                 product_data["category"] = []
 
 
-            # --- ATTRIBUTES / SPECIFICATIONS ---
+                        # --- DESCRIPTION ---
             try:
-                current_section = None
-                spec_list = soup.select_one('ul.spec-list')
+                spec_list = soup.select_one("ul.spec-list")
                 if spec_list:
-                    for li in spec_list.find_all('li', recursive=False):
-                        if 'spec-list-title' in li.get('class', []):
-                            current_section = li.get_text(strip=True)
-                            product_data['attributes'][current_section] = {}
-                        elif current_section:
-                            strong = li.find('strong')
-                            if strong:
-                                key = strong.text.strip().replace(':', '')
-                                strong.extract()
-                                value = li.get_text(strip=True)
-                                product_data['attributes'][current_section][key] = value
-                            else:
-                                text = li.get_text(strip=True)
-                                if text:
-                                    product_data['attributes'][current_section][text] = None
+                    lines = []
+                    for li in spec_list.find_all("li"):
+                        text = li.get_text(strip=True, separator=" ")
+                        if text:
+                            lines.append(text)
+                    # Join with literal \n between lines
+                    product_data['description'] = "\\n".join(lines)
+                else:
+                    product_data['description'] = None
             except Exception as e:
-                return {'error': f'Exception occurred while extracting attributes/specifications: {str(e)}', 'product_link': product_link}
+                return {'error': f'Exception occurred while extracting description: {str(e)}', 'product_link': product_link}
 
+
+      
             # --- VARIANTS / SIZES ---
             try:
                 size_items = soup.select('.size-item')

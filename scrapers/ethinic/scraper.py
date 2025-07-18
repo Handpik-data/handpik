@@ -82,10 +82,8 @@ class EthinicScraper(BaseScraper):
                 self.log_debug(f"Exception occurred while scraping product SKU: {e}")
 
             try:
-                # === Prices ===
                 price_div = soup.find('div', class_='new-price')
                 if price_div:
-                    # Extract currency symbol
                     currency = None
 
                     def extract_currency(price_text):
@@ -95,7 +93,6 @@ class EthinicScraper(BaseScraper):
                     def clean_price(price_text):
                         return re.sub(r'[^\d]', '', price_text)
 
-                    # Discounted (original) price
                     off_price_div = price_div.find('div', class_='off-price')
                     if off_price_div:
                         original_price_span = off_price_div.find('span', class_='money')
@@ -104,7 +101,6 @@ class EthinicScraper(BaseScraper):
                             product_data['original_price'] = clean_price(price_text)
                             currency = extract_currency(price_text)
 
-                    # Sale price
                     sale_price_div = price_div.find('div', class_='sale-price')
                     if sale_price_div:
                         sale_price_spans = sale_price_div.find_all('span', class_='money')
@@ -114,7 +110,6 @@ class EthinicScraper(BaseScraper):
                             if not currency:
                                 currency = extract_currency(price_text)
                     else:
-                        # No sale, only one price
                         price_simple_div = price_div.find('div', class_='price')
                         if price_simple_div:
                             price_span = price_simple_div.find('span', class_='money')
@@ -155,10 +150,8 @@ class EthinicScraper(BaseScraper):
                             if final_url not in product_data["images"]:
                                 product_data["images"].append(final_url)
 
-                # Extract main product images
                 extract_images_from_soup(soup)
 
-                # Get variant links
                 variant_links = []
                 variant_anchors = soup.select("div.new-option-single.color-option a.option-single-value[href]")
                 for a in variant_anchors:
@@ -167,7 +160,6 @@ class EthinicScraper(BaseScraper):
                     if full_url not in visited_urls:
                         variant_links.append(full_url)
 
-                # Extract images from variants
                 for variant_url in variant_links:
                     visited_urls.add(variant_url)
                     variant_resp = await self.async_make_request(variant_url)
@@ -183,7 +175,6 @@ class EthinicScraper(BaseScraper):
                 title_tag = soup.find("title")
                 product_title = title_tag.get_text(strip=True) if title_tag else "Unknown Product"
 
-                # Fetch and parse the menu page
                 menu_response = await self.async_make_request("https://pk.ethnc.com")
                 menu_soup = BeautifulSoup(menu_response.text, "html.parser")
 
@@ -197,7 +188,6 @@ class EthinicScraper(BaseScraper):
                     main_category_name = main_a.get_text(strip=True)
                     matched = False
 
-                    # Subcategories inside submenu
                     submenu = main_li.find("div", class_="new_submenu_accordian")
                     if submenu:
                         for child_li in submenu.find_all("li", class_="child_li"):
@@ -205,12 +195,10 @@ class EthinicScraper(BaseScraper):
                             if child_a and "href" in child_a.attrs:
                                 sub_url = child_a["href"]
                                 if sub_url in product_link or sub_url.split("/")[-1] in product_link:
-                                    # Match found
                                     category_path = [main_category_name, child_a.get_text(strip=True)]
                                     matched = True
                                     break
 
-                    # If no submenu, maybe it's a direct link
                     elif "href" in main_a.attrs and main_a["href"] in product_link:
                         category_path = [main_category_name]
                         matched = True
@@ -218,14 +206,11 @@ class EthinicScraper(BaseScraper):
                     if matched:
                         break
 
-                # Append product title as separate clean string
-                # Split by '–' or '-' if your titles have these as separators
                 if product_title:
                     # Split by dash, remove empty, strip each part
                     split_parts = [part.strip() for part in re.split(r'–|-', product_title) if part.strip()]
                     category_path.extend(split_parts)
 
-                # Save as list
                 product_data['category'] = category_path
 
             except Exception as e:
@@ -234,7 +219,6 @@ class EthinicScraper(BaseScraper):
 
 
             try:
-                # Short Description
                 short_desc_div = soup.select_one('div.new-product-short-description .metafield-rich_text_field')
                 if short_desc_div:
                     paragraphs = [p.get_text(strip=True).replace('\xa0', ' ') for p in short_desc_div.find_all('p')]
@@ -243,7 +227,6 @@ class EthinicScraper(BaseScraper):
                 self.log_debug(f"Exception occurred while scraping short description: {e}")
                 product_data['attributes'] = ""
 
-            # Product Description
             description_div = soup.select_one('div.draw-content')
             if description_div:
                 for br in description_div.find_all('br'):
@@ -251,27 +234,26 @@ class EthinicScraper(BaseScraper):
                 paragraphs = [p.get_text(separator='\n', strip=True).replace('\xa0', ' ') for p in description_div.find_all('p')]
                 product_data['description'] = '\n\n'.join(paragraphs)
 
-            # Ensure raw_data key exists
             if 'raw_data' not in product_data:
                 product_data['raw_data'] = {}
 
             try:
-                # Scrape care instructions
                 care_instructions = []
 
-                care_items = soup.select('div.new-composition-list div.new-composition-single')
-                for item in care_items:
-                    text_div = item.find('div', class_='text')
-                    if text_div:
-                        text = text_div.get_text(strip=True)
+                care_div = soup.find('div', class_='draw-content')
+                if care_div:
+                    paragraphs = care_div.find_all('p')
+                    for p in paragraphs:
+                        text = p.get_text(strip=True)
                         if text:
                             care_instructions.append(text)
 
-                # Save into raw_data
                 product_data['raw_data']['care_instructions'] = care_instructions if care_instructions else None
+
             except Exception as e:
                 self.log_debug(f"Exception occurred while scraping care instructions: {e}")
                 product_data['raw_data']['care_instructions'] = None
+
 
             try:
                 # === Color Variants ===
@@ -394,7 +376,7 @@ class EthinicScraper(BaseScraper):
                     products = await self.scrape_category(url)
                     final_data.extend(products)
                 if final_data:
-                    saved_path = await self.save_data(final_data)  # ✅ FIXED
+                    saved_path = await self.save_data(final_data)  
                     if saved_path:
                         self.log_info(f"Total {len(category_urls)} categories")
                         self.log_info(f"Saved {len(final_data)} products to {saved_path}")
