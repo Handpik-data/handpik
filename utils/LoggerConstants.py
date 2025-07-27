@@ -28,12 +28,14 @@ HUSHPUPPIES_LOGGER = "hushpuppies"
 Ego_LOGGER = "ego"
 IMAGE_LOGGER = "image"
 GENERATION_LOGGER = "generation_logger"
-ENHANCED_DESCRIPTION_LOGGER = "description"
-ELASTIC = "elastic"
 AMIR_ADNAN = "amiradnan"
 BONANZA_LOGGER = "bonanza"
+JUNAIDJAMSHED = "junaid"
 
-
+# autamate
+ENHANCED_DESCRIPTION_LOGGER = "description"
+ELASTIC = "elastic"
+SQL_LOGGER = "sql"
 
 
 

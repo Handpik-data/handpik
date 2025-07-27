@@ -293,6 +293,24 @@
       "interval": 1,
       "backupCount": 30,
       "delay": true
+    },
+    "sql_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/sql.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "junaid_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/junaid.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
     }
   },
   "loggers": {
@@ -422,6 +440,14 @@
     },
     "bonanza": {
       "handlers": ["bonanza_handler"],
+      "level": "DEBUG"
+    },
+    "sql": {
+      "handlers": ["sql_handler"],
+      "level": "DEBUG"
+    },
+    "junaid": {
+      "handlers": ["junaid_handler"],
       "level": "DEBUG"
     }
   }
