@@ -28,6 +28,16 @@ from scrapers.nakoosh.scraper import nakoosh_Scrapper
 from scrapers.insigma.scraper import insigma_scraper  
 from scrapers.Amir_Adnan.scraper import AmirAdnan_Scrapper  
 from scrapers.beechtree.scraper import Beechtree_Scrapper  
+from scrapers.FirstStep.scraper import firstStepScrapper 
+from scrapers.Panache.scraper import PanacheScraper 
+from scrapers.MakeupCity.scraper import makeupcityscrapper 
+from scrapers.FHS.scraper import FHSscrapper 
+from scrapers.unbeatable.scraper import UnbeatableScraper 
+from scrapers.LimeLight.scraper import LimeLightScraper 
+from scrapers.EdenRobe.scraper import EdenRobeScrapper 
+from scrapers.charcoal.scraper import CharCoalScraper 
+from scrapers.Beejays.scraper import BeejaysScraper 
+from scrapers.Hunzacandles.scraper import HunzaCandlesScraper 
 
 
 
@@ -65,7 +75,17 @@ async def main():
         nakoosh_Scrapper(),
         insigma_scraper(),
         AmirAdnan_Scrapper(),
-        Beechtree_Scrapper()
+        Beechtree_Scrapper(),
+        firstStepScrapper(),
+        PanacheScraper(),
+        makeupcityscrapper(),
+        FHSscrapper(),
+        UnbeatableScraper(),
+        LimeLightScraper(),
+        EdenRobeScrapper(),
+        CharCoalScraper(),
+        BeejaysScraper(),
+        HunzaCandlesScraper()
 
 
 

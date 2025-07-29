@@ -28,6 +28,17 @@ HUSHPUPPIES_LOGGER = "hushpuppies"
 Ego_LOGGER = "ego"
 IMAGE_LOGGER = "image"
 GENERATION_LOGGER = "generation_logger"
+Firststep_LOGGER = "1STSTEP"
+PANACHE_LOGGER = "panache"
+MAKEUPCITY_LOGGER = "makeupcity" 
+FHS_LOGGER = "FHS"
+UNBEATABLE_LOGGER = "unbeatable_logger"
+LimeLight_Logger = "LimeLight" 
+EDENROBE_LOGGER="edenrobe"
+Charcoal_LOGGER="charcoal"
+BEEJAYS_LOGGER="beejayslogger"
+HUNZACANDLES_LOGGER ="hunzacandles"
+
 
 
 

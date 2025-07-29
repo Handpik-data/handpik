@@ -266,7 +266,99 @@
       "interval": 1,
       "backupCount": 30,
       "delay": true
-    }
+    },
+    "firststep_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/firststep.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "panache_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/panache.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "makeupcity_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/makeupcity.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "fhs_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/fhs.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "unbeatable_logger_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/unbeatable_logger.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "limelight_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/limelight.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "edenrobe_handler": {
+      "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+      "formatter": "detailed",
+      "filename": "./logs/edenrobe.log",
+      "when": "midnight",
+      "interval": 1,
+      "backupCount": 30,
+      "delay": true
+    },
+    "charcoal_handler": {
+  "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+  "formatter": "detailed",
+  "filename": "./logs/charcoal.log",
+  "when": "midnight",
+  "interval": 1,
+  "backupCount": 30,
+  "delay": true
+},
+"beejayslogger_handler": {
+  "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+  "formatter": "detailed",
+  "filename": "./logs/beejayslogger.log",
+  "when": "midnight",
+  "interval": 1,
+  "backupCount": 30,
+  "delay": true
+},
+"hunzacandles_handler": {
+  "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+  "formatter": "detailed",
+  "filename": "./logs/hunzacandles.log",
+  "when": "midnight",
+  "interval": 1,
+  "backupCount": 30,
+  "delay": true
+}
+
+
   },
   "loggers": {
     "zeenwoman": {
@@ -384,6 +476,46 @@
     "NAKOOSH": {
       "handlers": ["nakoosh_handler"],
       "level": "DEBUG"
-    }
+    },
+    "1STSTEP": {
+      "handlers": ["firststep_handler"],
+      "level": "DEBUG"
+    }, 
+    "panache": {
+      "handlers": ["panache_handler"],
+      "level": "DEBUG"
+    },
+    "makeupcity": {
+      "handlers": ["makeupcity_handler"],
+      "level": "DEBUG"
+    },
+    "FHS": {
+      "handlers": ["fhs_handler"],
+      "level": "DEBUG"
+    },
+    "unbeatable_logger": {
+    "handlers": ["unbeatable_logger_handler"],
+    "level": "DEBUG"
+  },
+     "LimeLight": {
+      "handlers": ["limelight_handler"],
+      "level": "DEBUG"
+  },
+  "edenrobe": {
+    "handlers": ["edenrobe_handler"],
+    "level": "DEBUG"
+  },
+  "charcoal": {
+  "handlers": ["charcoal_handler"],
+  "level": "DEBUG"
+},
+"beejayslogger": {
+  "handlers": ["beejayslogger_handler"],
+  "level": "DEBUG"
+},
+"hunzacandles": {
+  "handlers": ["hunzacandles_handler"],
+  "level": "DEBUG"
+}
   }
 }
