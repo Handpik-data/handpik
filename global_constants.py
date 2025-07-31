@@ -60,3 +60,10 @@ SYSTEM_PROMPT = """
     """
 
 GEMINI_MODEL = "gemini-2.0-flash"
+
+JSONDATA = "jsondata"
+OLDJSONDATA = "oldjsondata"
+ENHANCEDDATA = "enhanced_jsondata"
+OLDENHANCEDDATA = "oldenhanced_jsondata"
+PRODUCTS_TABLE = "products"
+ENHANCED_DESCRIPRION_TABLE = "enhanced_products"

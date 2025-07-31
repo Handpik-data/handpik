@@ -37,7 +37,7 @@ def setup_logging():
         config = json.load(f)
     logging.config.dictConfig(config)
 
-async def main():
+async def run_scraping():
     setup_logging()
     scrapers = [
         AmirAdnan_Scrapper(),
@@ -80,4 +80,4 @@ async def main():
             print("A scraper completed:", result)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(run_scraping())

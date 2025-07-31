@@ -10,7 +10,7 @@ import os
 import json
 import shutil
 from datetime import datetime
-
+import global_constants
 class BaseScraper(ABC):
     def __init__(self, base_url, logger_name, proxies=None, request_delay=0.1, max_retries=5):
         self.base_url = base_url
@@ -143,8 +143,8 @@ class BaseScraper(ABC):
                 os.path.dirname(__file__), '..'
             ))
             
-            json_dir = os.path.join(project_root, "jsondata")
-            old_dir = os.path.join(project_root, "oldjsondata")
+            json_dir = os.path.join(project_root, global_constants.JSONDATA)
+            old_dir = os.path.join(project_root, global_constants.OLDJSONDATA)
             os.makedirs(json_dir, exist_ok=True)
             os.makedirs(old_dir, exist_ok=True)
 
