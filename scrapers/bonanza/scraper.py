@@ -39,7 +39,7 @@ class BonanzaScraper(BaseScraper):
         with open(filepath, 'r') as file:
             return list(set(line.strip() for line in file if line.strip()))
 
-    async def scrape_pdp(self, product_link):
+    async def scrape_pdp(self, product_link, category_hierarchy=[]):
         if product_link in self.all_product_links_:
             return None
 
@@ -55,7 +55,7 @@ class BonanzaScraper(BaseScraper):
             'images': [],
             'brand': None,
             'availability': None,
-            'category': [],
+            'category': category_hierarchy,
             'product_url': product_link,
             'variants': [],
             'attributes': {},
@@ -160,26 +160,6 @@ class BonanzaScraper(BaseScraper):
 
             except Exception as e:
                 self.log_debug(f"Price scrape error: {e}")
-
-
-
-            try:
-                breadcrumbs_div = soup.find('div', class_='breadcrumbs')
-                categories = []
-                if breadcrumbs_div:
-                    li_tags = breadcrumbs_div.find_all('li')
-                    for li in li_tags:
-                        if 'home' in li.get('class', []):
-                            continue
-                        a = li.find('a')
-                        strong = li.find('strong')
-                        if a:
-                            categories.append(a.get_text(strip=True))
-                        elif strong:
-                            categories.append(strong.get_text(strip=True))
-                product_data["category"] = categories
-            except Exception as e:
-                self.log_debug(f"Breadcrumb scrape error: {e}")
 
             try:
                 variants = []
@@ -321,12 +301,37 @@ class BonanzaScraper(BaseScraper):
 
         self.log_info(f"Total collected {len(all_product_links)} product links.")
         return all_product_links
+    
+
+    async def extract_category_hierarchy(self, url):
+        from urllib.parse import urlparse
+        
+        parsed = urlparse(url)
+        path_segments = parsed.path.strip('/').split('/')
+        
+        categories = []
+        skip_segments = {'collections'}
+        
+        for segment in path_segments:
+            if segment in skip_segments:
+                continue
+                
+            segment = re.sub(r'-\d+$', '', segment)
+            
+            if len(segment) < 3 or segment.isdigit():
+                continue
+                
+            category_name = segment.replace('-', ' ').title()
+            categories.append(category_name)
+        
+        return categories
 
     async def scrape_category(self, url):
         all_products = []
+        category_hierarchy = await self.extract_category_hierarchy(url)
         all_products_links = await self.scrape_products_links(url)
         for product_link in all_products_links:
-            pdp_data = await self.scrape_pdp(product_link)
+            pdp_data = await self.scrape_pdp(product_link, category_hierarchy)
             if pdp_data is not None:
                 all_products.append(pdp_data)
 

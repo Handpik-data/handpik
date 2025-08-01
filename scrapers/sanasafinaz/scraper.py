@@ -39,7 +39,7 @@ class SanaSafinazScraper(BaseScraper):
             price_str = price_str[1:]
         return price_str
         
-    async def scrape_pdp(self, product_link):
+    async def scrape_pdp(self, product_link, category_hierarchy=[]):
                 
         if product_link in self.all_product_links_:
             return None
@@ -56,7 +56,7 @@ class SanaSafinazScraper(BaseScraper):
             'images': [],
             'brand': None,
             'availability': None,
-            'category': [],
+            'category': category_hierarchy,
             'product_url': product_link,
             'variants': [],
             'attributes': {},
@@ -208,11 +208,34 @@ class SanaSafinazScraper(BaseScraper):
         
         return list(all_product_links)
 
+    async def extract_category_hierarchy(self, url):
+        from urllib.parse import urlparse
+        
+        parsed = urlparse(url)
+        path_segments = parsed.path.strip('/').split('/')
+        
+        categories = []
+        for segment in path_segments:
+            if segment in ['pk', 'home'] or not segment:
+                continue
+            
+            if segment.endswith('.html'):
+                segment = segment[:-5]
+            
+            if not segment:
+                continue
+                
+            category_name = segment.replace('-', ' ').title()
+            categories.append(category_name)
+        
+        return categories
+
     async def scrape_category(self, url):
         all_products = []
+        category_hierarchy = await self.extract_category_hierarchy(url)
         all_products_links = await self.scrape_products_links(url)
         for product_link in all_products_links:
-            pdp_data = await self.scrape_pdp(product_link)
+            pdp_data = await self.scrape_pdp(product_link, category_hierarchy)
             if pdp_data is not None:
                 all_products.append(pdp_data)
         
