@@ -33,10 +33,14 @@ class SaeedGhaniScraper(BaseScraper):
             return list(set(line.strip() for line in file if line.strip()))
         
     async def clean_price_string(self, price_str):
-        if not price_str:
+        try:
+            if not price_str:
+                return None
+            cleaned = re.sub(r'(Rs\.?|,|\s)', '', price_str)
+            return float(cleaned)
+        except Exception as e:
+            self.logger.warning(f"price conversion failed for price {price_str} for original price: {str(e)}")
             return None
-        cleaned = re.sub(r'(Rs\.?|,|\s)', '', price_str)
-        return cleaned
         
     async def scrape_pdp(self, product_link):        
                 
@@ -49,7 +53,7 @@ class SaeedGhaniScraper(BaseScraper):
             'title': None,
             'sku': None,
             'description': None,
-            'currency': None,
+            'currency': 'PKR',
             'original_price': None,
             'sale_price': None,
             'images': [],
@@ -85,9 +89,16 @@ class SaeedGhaniScraper(BaseScraper):
                     if compare_price:
                         compare_price = await self.clean_price_string(compare_price.find('span', class_='money').get_text(strip=True))
                         on_sale = await self.clean_price_string(prices_div.find('span', class_='on-sale').find('span', class_='money').get_text(strip=True))
-
-                        product_data['original_price'] = compare_price
-                        product_data['sale_price'] = on_sale
+                        try:
+                            product_data['original_price'] = float(compare_price)
+                        except Exception as e:
+                            self.logger.warning(f"price conversion failed for price {compare_price} for original price: {str(e)}")
+                            return None
+                        try:
+                            product_data['sale_price'] = float(on_sale)
+                        except Exception as e:
+                            self.logger.warning(f"price conversion failed for price {on_sale} for sale price: {str(e)}")
+                            return None
                     else:
                         product_data['original_price'] = await self.clean_price_string(prices_div.find('span', class_='money').get_text(strip=True))
 
@@ -140,7 +151,10 @@ class SaeedGhaniScraper(BaseScraper):
         except Exception as e:
             self.log_error(f"An error occurred while scraping PDP: {e}")
         
-        return product_data
+        if product_data['title']: 
+            return product_data
+        else:
+            return None
     
     async def scrape_products_links(self, url):
         all_product_links = set()

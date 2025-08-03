@@ -45,8 +45,8 @@ async def setup_partitioned_table(pool, table_name, extra_columns=""):
         "sku TEXT",
         "description TEXT",
         "currency VARCHAR(3)",
-        "original_price TEXT",
-        "sale_price TEXT",
+        "original_price DOUBLE PRECISION",
+        "sale_price DOUBLE PRECISION",
         "images JSONB NOT NULL DEFAULT '[]'::JSONB",
         "brand TEXT",
         "availability BOOLEAN",
@@ -106,9 +106,21 @@ async def insert_products(pool, table_name, products):
     
     async with pool.acquire() as conn:
         for product in products:    
-            availability = product.get('availability')
             if isinstance(availability, str):
-                availability = availability.lower() in ['true', 'yes', 'available', '1', 'in stock']
+                truthy = ['true', 'yes', 'available', '1', 'in stock']
+                falsy = ['false', 'no', '0', 'not available', 'out of stock', 'unavailable']
+                cleaned = availability.lower().strip()
+                
+                if cleaned in truthy:
+                    availability = True
+                elif cleaned in falsy:
+                    availability = False
+                else:
+                    availability = None 
+            elif isinstance(availability, (bool, type(None))):
+                pass
+            else:
+                availability = None
             
             base_values = [
                 product.get('store_name'),
@@ -116,8 +128,8 @@ async def insert_products(pool, table_name, products):
                 product.get('sku'),
                 product.get('description'),
                 product.get('currency'),
-                str(product.get('original_price')) if product.get('original_price') is not None else None,
-                str(product.get('sale_price')) if product.get('sale_price') is not None else None,
+                float(product.get('original_price')) if product.get('original_price') is not None else None,
+                float(product.get('sale_price')) if product.get('sale_price') is not None else None,
                 json.dumps(product.get('images') or []),     
                 product.get('brand'),
                 availability,

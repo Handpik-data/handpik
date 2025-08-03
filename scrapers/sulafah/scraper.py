@@ -40,7 +40,7 @@ class SulafahScraper(BaseScraper):
             'title': None,
             'sku': None,
             'description': None,
-            'currency': None,
+            'currency': 'PKR',
             'original_price': None,
             'sale_price': None,
             'images': [],
@@ -65,11 +65,19 @@ class SulafahScraper(BaseScraper):
 
             sale_price_tag = soup.select_one('.price-list--product sale-price .money')
             sale_price = re.sub(r'[^0-9.]', '', sale_price_tag.get_text(strip=True))[1:] if sale_price_tag else None
-            product_data['sale_price'] = sale_price
+            try:
+                product_data['sale_price'] = float(sale_price)
+            except Exception as e:
+                self.logger.warning(f"price conversion failed for sale price for price {sale_price}: {str(e)}")
+                product_data['sale_price'] = None
 
             compare_price_tag = soup.select_one('.price-list--product compare-at-price:not([hidden]) .money')
             compare_price = re.sub(r'[^0-9.]', '', compare_price_tag.get_text(strip=True))[1:] if compare_price_tag else None
-            product_data['original_price'] = compare_price
+            try:
+                product_data['original_price'] = float(compare_price)
+            except Exception as e:
+                self.logger.warning(f"price conversion failed for original price for price {compare_price}: {str(e)}")
+                product_data['original_price'] = None
 
 
             desc_section = soup.select_one('.product-info__block-item[data-block-type="description"] .prose')
@@ -105,10 +113,24 @@ class SulafahScraper(BaseScraper):
                     product_data['variants'] = sizes
                 except (json.JSONDecodeError, TypeError):
                     continue
+                
+            for script in scripts:
+                try:
+                    data = json.loads(script.string)
+                    if isinstance(data, dict) and data.get('@type') == 'Product':
+                        category = data.get('category')
+                        if category:
+                            product_data['category'] = [category]
+                            break
+                except (json.JSONDecodeError, TypeError):
+                    continue
         except Exception as e:
             self.log_error(f"Error scraping product data from {product_link}: {e}")   
         
-        return product_data
+        if product_data['title']: 
+            return product_data
+        else:
+            return None
 
     async def scrape_products_links(self, url):
         all_product_links = []

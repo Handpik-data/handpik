@@ -30,6 +30,13 @@ class WovWorldScraper(BaseScraper):
         with open(filename, 'r') as file:
             return list(set(line.strip() for line in file if line.strip()))
         
+    async def clean_price_string(self, price_str):
+        try:
+            return float(price_str) if price_str else None
+        except Exception as e:
+            self.logger.warning(f"price conversion failed for price {price_str}: {str(e)}")
+            return None
+        
     async def scrape_pdp(self, product_link):
 
         if product_link in self.all_product_links_:
@@ -41,7 +48,7 @@ class WovWorldScraper(BaseScraper):
             'title': None,
             'sku': None,
             'description': None,
-            'currency': None,
+            'currency': 'PKR',
             'original_price': None,
             'sale_price': None,
             'images': [],
@@ -81,7 +88,7 @@ class WovWorldScraper(BaseScraper):
                 if price_span:
                     raw_price_text = price_span.get_text(strip=True)
                     numeric_text = re.sub(r'[^0-9.]', '', raw_price_text)
-                    product_data['original_price'] = numeric_text[1:] if numeric_text else None
+                    product_data['original_price'] = await self.clean_price_string(numeric_text[1:]) if numeric_text else None
 
 
             size_wrapper = product_container.find('div', class_='variant-wrapper variant-wrapper--button js')
@@ -131,7 +138,11 @@ class WovWorldScraper(BaseScraper):
                     product_data['category'] = [collection_name]
         except Exception as e:
             self.log_error(f"Error scraping product data from {product_link}: {e}")   
-        return product_data
+        
+        if product_data['title']: 
+            return product_data
+        else:
+            return None
 
     async def scrape_products_links(self, url):
         all_product_links = []

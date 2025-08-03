@@ -32,6 +32,16 @@ class ZeeWomanScraper(BaseScraper):
         with open(filename, 'r') as file:
             return list(set(line.strip() for line in file if line.strip()))
         
+    async def clean_price_string(self, price_str):
+        try:
+            if not price_str:
+                return None
+            cleaned = re.sub(r"[^\d.]", "", price_str.replace(",", ""))
+            return float(cleaned) if cleaned else None
+        except Exception as e:
+            self.logger.warning(f"price conversion failed for price {price_str}: {str(e)}")
+            return None
+        
     async def scrape_pdp(self, product_link):
         if product_link in self.all_product_links_:
             return None
@@ -42,7 +52,7 @@ class ZeeWomanScraper(BaseScraper):
             'title': None,
             'sku': None,
             'description': None,
-            'currency': None,
+            'currency': 'PKR',
             'original_price': None,
             'sale_price': None,
             'images': [],
@@ -85,8 +95,8 @@ class ZeeWomanScraper(BaseScraper):
                     elif single_price:
                         original_price = single_price.get_text(strip=True)
 
-                    product_data['original_price'] = original_price
-                    product_data['sale_price'] = sale_price
+                    product_data['original_price'] = await self.clean_price_string(original_price)
+                    product_data['sale_price'] = await self.clean_price_string(sale_price)
 
             
             swatch_options = soup.find_all('div', {'class': 't4s-swatch__option'})
@@ -218,8 +228,11 @@ class ZeeWomanScraper(BaseScraper):
             product_data['category'] = [a.get_text(strip=True) for a in breadcrumb.find_all('a', class_='t4s-dib') if a.get_text(strip=True).lower() != 'home']
 
         except Exception as e:
-            self.log_error(f"Error scraping product data from {product_link}: {e}")   
-        return product_data
+            self.log_error(f"Error scraping product data from {product_link}: {e}")  
+        if product_data['title']: 
+            return product_data
+        else:
+            return None
 
     async def scrape_products_links(self, url):
         all_product_links = []

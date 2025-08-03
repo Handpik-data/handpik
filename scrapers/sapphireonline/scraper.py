@@ -43,7 +43,7 @@ class SapphireScraper(BaseScraper):
             'title': None,
             'sku': None,
             'description': None,
-            'currency': None,
+            'currency': 'PKR',
             'original_price': None,
             'sale_price': None,
             'images': [],
@@ -106,8 +106,13 @@ class SapphireScraper(BaseScraper):
                                     price_str = p.get("price")
                                     try:
                                         if price_str and not product_data['original_price'] and product_data['original_price'] == "":
-                                            product_data["original_price"] = float(price_str)
+                                            try:
+                                                product_data["original_price"] = float(price_str)
+                                            except Exception as e:
+                                                product_data["original_price"] = None
+                                                self.logger.warning(f"price conversion failed for price {price_str}: {str(e)}")
                                     except ValueError:
+                                        product_data["original_price"] = None
                                         self.log_debug(f"Exception occured while parsing price : {e}")
                             except Exception:
                                 self.log_debug(f"Exception occured while parsing dataLayerEvent : {e}")
@@ -146,7 +151,7 @@ class SapphireScraper(BaseScraper):
         try:
             size_items = soup.find_all("div", class_="size-item")
             all_sizes = []
-
+            seen_variants = set()
             for si in size_items:
                 size_span = si.find("span")
                 input_tag = si.find("input")
@@ -158,10 +163,12 @@ class SapphireScraper(BaseScraper):
                     availability = "not-available" not in input_classes
 
                     if size_text:
-                        all_sizes.append({
-                            "size": size_text,
-                            "availability": availability
-                        })
+                        if size_text not in seen_variants:
+                            seen_variants.add(size_text)
+                            all_sizes.append({
+                                "size": size_text,
+                                "availability": availability
+                            })
 
             product_data["variants"] = all_sizes
 
@@ -170,7 +177,10 @@ class SapphireScraper(BaseScraper):
         except Exception as e:
             self.log_debug(f"Exception occured while parsing variants : {e}")
 
-        return product_data
+        if product_data['title']: 
+            return product_data
+        else:
+            return None
 
     def parse_ldjson_product(self, data, product_data):
       
@@ -195,8 +205,11 @@ class SapphireScraper(BaseScraper):
 
             offers = data.get("offers", {})
             if isinstance(offers, dict):
-                product_data["currency"] = offers.get("priceCurrency", product_data["currency"])
-                product_data["original_price"] = offers.get("price", product_data["original_price"])
+                try:
+                    product_data["original_price"] = float(offers.get("price", product_data["original_price"]))
+                except Exception as e:
+                    product_data["original_price"] = None
+                    self.logger.warning(f"price conversion failed: {str(e)}")
                 avail_link = offers.get("availability", "")
                 if "InStock" in avail_link:
                     product_data["availability"] = True

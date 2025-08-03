@@ -42,7 +42,7 @@ class ShafferScraper(BaseScraper):
             'title': None,
             'sku': None,
             'description': None,
-            'currency': None,
+            'currency': 'PKR',
             'original_price': None,
             'sale_price': None,
             'images': [],
@@ -76,14 +76,15 @@ class ShafferScraper(BaseScraper):
 
             try:
                 og_price = soup.find("meta", attrs={"property": "og:price:amount"})
-                og_currency = soup.find("meta", attrs={"property": "og:price:currency"})
                 if og_price and og_price.get("content"):
                     cleaned_price = og_price["content"].replace(",", "")
-                    product_data["original_price"] = float(cleaned_price)
-                if og_currency and og_currency.get("content"):
-                    product_data["currency"] = og_currency["content"]
+                    try:
+                        product_data["original_price"] = float(cleaned_price)
+                    except Exception as e:
+                        self.logger.warning(f"price conversion failed for price {cleaned_price}: {str(e)}")
+                        product_data["original_price"] = None
             except Exception as e:
-                self.log_debug(f"Exception occured while scraping product's currency and original price : {e}")
+                self.log_debug(f"Exception occured while scraping original price : {e}")
 
             try:
                 desc_div = soup.find("div", class_="accordion__content p2 p2--fixed rte")
@@ -134,7 +135,10 @@ class ShafferScraper(BaseScraper):
         except Exception as e:
             self.log_error(f"An error occurred while scraping: {e}")
         
-        return product_data
+        if product_data['title']: 
+            return product_data
+        else:
+            return None
     
 
     

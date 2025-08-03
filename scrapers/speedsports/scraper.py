@@ -41,7 +41,7 @@ class SpeedSportsScraper(BaseScraper):
             'title': None,
             'sku': None,
             'description': None,
-            'currency': None,
+            'currency': 'PKR',
             'original_price': None,
             'sale_price': None,
             'images': [],
@@ -70,7 +70,11 @@ class SpeedSportsScraper(BaseScraper):
                 badge_el = price_container.find('span', class_='t4s-badge-price')
 
                 def clean_price(text):
-                    return text.replace('Rs.', '').replace(',', '').strip()
+                    try:
+                        return float(text.replace('Rs.', '').replace(',', '').strip())
+                    except Exception as e:
+                        self.logger.warning(f"price conversion failed for price {text}: {str(e)}")
+                        return None
 
                 if del_el and ins_el:
                     product_data['original_price'] = clean_price(del_el.get_text())
@@ -167,7 +171,10 @@ class SpeedSportsScraper(BaseScraper):
         except Exception as e:
             self.log_error(f"Error scraping product data from {product_link}: {e}")
 
-        return product_data
+        if product_data['title']: 
+            return product_data
+        else:
+            return None
 
     async def scrape_products_links(self, url):
         all_product_links = []

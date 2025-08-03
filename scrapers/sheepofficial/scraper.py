@@ -32,14 +32,19 @@ class SheepOfficialScraper(BaseScraper):
             return list(set(line.strip() for line in file if line.strip()))
         
 
-    def format_price(self, raw_price: str) -> str:
-        cleaned = raw_price.strip()
+    async def format_price(self, raw_price: str) -> float:
+        try:
+            cleaned = raw_price.strip()
 
-        cleaned = cleaned.replace("Rs.", "")
-        cleaned = cleaned.replace(",", "")
-        cleaned = cleaned.strip()
+            cleaned = cleaned.replace("Rs.", "")
+            cleaned = cleaned.replace(",", "")
+            cleaned = cleaned.strip()
 
-        return cleaned
+            return float(cleaned)
+        except Exception as e:
+            self.logger.warning(f"price conversion failed for price {raw_price}: {str(e)}")
+            return None
+    
         
     async def scrape_pdp(self, product_link: str) -> dict:
         if product_link in self.all_product_links_:
@@ -51,7 +56,7 @@ class SheepOfficialScraper(BaseScraper):
             'title': None,
             'sku': None,
             'description': None,
-            'currency': None,
+            'currency': 'PKR',
             'original_price': None,
             'sale_price': None,
             'images': [],
@@ -87,6 +92,18 @@ class SheepOfficialScraper(BaseScraper):
             else:
                 variants_data = []
 
+            breadcrumb_nav = soup.find('nav', class_='t4s-pr-breadcrumb')
+            if breadcrumb_nav:
+                children = list(breadcrumb_nav.children)
+                valid_children = [child for child in children[1:-1] 
+                    if child.name and 'svg' not in child.name
+                ]
+                categories = []
+                for child in valid_children:
+                    if child.name == 'a':
+                        categories.append(child.get_text(strip=True))
+                product_data['category'] = categories
+
             
             options_script = soup.find('script', class_='pr_options_json')
             if options_script:
@@ -116,16 +133,16 @@ class SheepOfficialScraper(BaseScraper):
             if price_wrap:
                 del_tag = price_wrap.select_one("del .money")
                 if del_tag:
-                    product_data["original_price"] = self.format_price(del_tag.get_text(strip=True))
+                    product_data["original_price"] = await self.format_price(del_tag.get_text(strip=True))
                 ins_tag = price_wrap.select_one("ins .money")
                 if ins_tag:
-                    product_data["sale_price"] = self.format_price(ins_tag.get_text(strip=True))
+                    product_data["sale_price"] = await self.format_price(ins_tag.get_text(strip=True))
                 else:
                 
                     if not del_tag:
                         money_tag = price_wrap.select_one(".money")
                         if money_tag:
-                            product_data["original_price"] = money_tag.get_text(strip=True)
+                            product_data["original_price"] = await self.format_price(money_tag.get_text(strip=True))
 
             desc_wrap = soup.select_one(".t4s-product__description .t4s-rte")
             if desc_wrap:
@@ -191,28 +208,13 @@ class SheepOfficialScraper(BaseScraper):
             if reviews_count_tag:
                 product_data['attributes']["product_reviews_count"] = reviews_count_tag.get_text(strip=True)
 
-           
-            currency_meta = soup.find("meta", {"itemprop": "priceCurrency"})
-            if currency_meta and currency_meta.get("content"):
-                product_data["currency"] = currency_meta["content"].strip()
-            else:
-                for script_tag in ld_json_scripts:
-                    try:
-                        data_json = json.loads(script_tag.string or "")
-                        if isinstance(data_json, dict):
-                            if data_json.get("@type") == "ProductGroup" and data_json.get("hasVariant"):
-                                for variant in data_json["hasVariant"]:
-                                    offers = variant.get("offers", {})
-                                    if offers and offers.get("priceCurrency") and not product_data['currency'] and product_data['currency'] == "":
-                                        product_data["currency"] = offers["priceCurrency"]
-                                        break
-                    except Exception as e:
-                        self.log_debug(f"Exception occured while scraping product's currency : {e}")
-
         except Exception as e:
             self.log_error(f"Error scraping {product_link}: {e}")
 
-        return product_data
+        if product_data['title']: 
+            return product_data
+        else:
+            return None
 
     
     async def scrape_products_links(self, url):

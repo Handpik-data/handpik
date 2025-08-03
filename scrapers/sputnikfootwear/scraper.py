@@ -41,7 +41,7 @@ class SputnikFootWearScraper(BaseScraper):
             'title': None,
             'sku': None,
             'description': None,
-            'currency': None,
+            'currency': 'PKR',
             'original_price': None,
             'sale_price': None,
             'images': [],
@@ -87,8 +87,10 @@ class SputnikFootWearScraper(BaseScraper):
             product_data['images'] = [
                 img.replace('//', 'https://') for img in all_images
             ]
+
             variants_list = product_json.get('variants', [])
             product_options = product_json.get('options', [])
+            seen_variants = set()
             for v in variants_list:
                 variant_info = {}
                 count = 1
@@ -99,13 +101,26 @@ class SputnikFootWearScraper(BaseScraper):
                     variant_info['price'] = v['price'] / 100.0 if v.get('price') else None
                     variant_info['original_price'] = (v['compare_at_price'] / 100.0 
                                                         if v.get('compare_at_price') else None)
+                    normalized_info = {}
+                    for key, value in variant_info.items():
+                        if isinstance(value, str):
+                            value = value.strip().lower()
+                        elif isinstance(value, (int, float)):
+                            value = float(value)
+                        normalized_info[key] = value
                     
-                    product_data['variants'].append(variant_info)
+                    variant_key = tuple(sorted(normalized_info.items()))
+                    if variant_key not in seen_variants:
+                        seen_variants.add(variant_key)
+                        product_data['variants'].append(variant_info)
 
         except Exception as e:
             self.log_error(f"Error scraping product data from {product_link}: {e}")
 
-        return product_data
+        if product_data['title']: 
+            return product_data
+        else:
+            return None
     
     async def get_product_links(self, page_url):
         response = await self.async_make_request(

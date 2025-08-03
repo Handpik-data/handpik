@@ -33,11 +33,15 @@ class SanaSafinazScraper(BaseScraper):
             return list(set(line.strip() for line in file if line.strip()))
         
     async def clean_price_string(self, price_str):
-        if not price_str:
+        try:
+            if not price_str:
+                return None
+            cleaned = re.sub(r"[^\d.]", "", price_str)
+            return float(cleaned) if cleaned else None
+        except Exception as e:
+            self.logger.warning(f"price conversion failed for price {price_str}: {str(e)}")
             return None
-        if price_str.startswith("£"):
-            price_str = price_str[1:]
-        return price_str
+    
         
     async def scrape_pdp(self, product_link, category_hierarchy=[]):
                 
@@ -50,7 +54,7 @@ class SanaSafinazScraper(BaseScraper):
             'title': None,
             'sku': None,
             'description': None,
-            'currency': None,
+            'currency': 'PKR',
             'original_price': None,
             'sale_price': None,
             'images': [],
@@ -167,7 +171,10 @@ class SanaSafinazScraper(BaseScraper):
         except Exception as e:
             self.log_error(f"An error occurred while scraping PDP: {e}")
         
-        return product_data
+        if product_data['title']: 
+            return product_data
+        else:
+            return None
     
     async def scrape_products_links(self, url):
         all_product_links = set()
