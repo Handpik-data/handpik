@@ -331,191 +331,359 @@
       "delay": true
     },
     "charcoal_handler": {
-  "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-  "formatter": "detailed",
-  "filename": "./logs/charcoal.log",
-  "when": "midnight",
-  "interval": 1,
-  "backupCount": 30,
-  "delay": true
-},
-"beejayslogger_handler": {
-  "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-  "formatter": "detailed",
-  "filename": "./logs/beejayslogger.log",
-  "when": "midnight",
-  "interval": 1,
-  "backupCount": 30,
-  "delay": true
-},
-"hunzacandles_handler": {
-  "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
-  "formatter": "detailed",
-  "filename": "./logs/hunzacandles.log",
-  "when": "midnight",
-  "interval": 1,
-  "backupCount": 30,
-  "delay": true
-}
+    "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+    "formatter": "detailed",
+    "filename": "./logs/charcoal.log",
+    "when": "midnight",
+    "interval": 1,
+    "backupCount": 30,
+    "delay": true
+  },
+  "beejayslogger_handler": {
+    "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+    "formatter": "detailed",
+    "filename": "./logs/beejayslogger.log",
+    "when": "midnight",
+    "interval": 1,
+    "backupCount": 30,
+    "delay": true
+  },
+  "hunzacandles_handler": {
+    "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+    "formatter": "detailed",
+    "filename": "./logs/hunzacandles.log",
+    "when": "midnight",
+    "interval": 1,
+    "backupCount": 30,
+    "delay": true
+  },
+  "califord_logger_handler": {
+    "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+    "formatter": "detailed",
+    "filename": "./logs/califord_logger.log",
+    "when": "midnight",
+    "interval": 1,
+    "backupCount": 30,
+    "delay": true
+  },
+  "allurebeauty_logger_handler": {
+    "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+    "formatter": "detailed",
+    "filename": "./logs/allurebeauty_logger.log",
+    "when": "midnight",
+    "interval": 1,
+    "backupCount": 30,
+    "delay": true
+  },
+  "hopscotch_logger_handler": {
+    "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+    "formatter": "detailed",
+    "filename": "./logs/hopscotch_logger.log",
+    "when": "midnight",
+    "interval": 1,
+    "backupCount": 30,
+    "delay": true
+  },
+  "colorstudio_logger_handler": {
+    "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+    "formatter": "detailed",
+    "filename": "./logs/colorstudio_logger.log",
+    "when": "midnight",
+    "interval": 1,
+    "backupCount": 30,
+    "delay": true
+  },
+  "binsaeed_logger_handler": {
+    "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+    "formatter": "detailed",
+    "filename": "./logs/binsaeed_logger.log",
+    "when": "midnight",
+    "interval": 1,
+    "backupCount": 30,
+    "delay": true
+  },
+  "hangtang_logger_handler": {
+    "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+    "formatter": "detailed",
+    "filename": "./logs/hangtang_logger.log",
+    "when": "midnight",
+    "interval": 1,
+    "backupCount": 30,
+    "delay": true
+  },
+  "rangja_logger_handler": {
+    "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+    "formatter": "detailed",
+    "filename": "./logs/rangja_logger.log",
+    "when": "midnight",
+    "interval": 1,
+    "backupCount": 30,
+    "delay": true
+  },
+  "giordando_logger_handler": {
+    "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+    "formatter": "detailed",
+    "filename": "./logs/giordando_logger.log",
+    "when": "midnight",
+    "interval": 1,
+    "backupCount": 30,
+    "delay": true
+  },
+  "salitex_logger_handler": {
+    "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+    "formatter": "detailed",
+    "filename": "./logs/salitex_logger.log",
+    "when": "midnight",
+    "interval": 1,
+    "backupCount": 30,
+    "delay": true
+  },
+  "vitality_logger_handler": {
+    "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+    "formatter": "detailed",
+    "filename": "./logs/vitality_logger.log",
+    "when": "midnight",
+    "interval": 1,
+    "backupCount": 30,
+    "delay": true
+  },
+  "heritagejewelers_logger_handler": {
+    "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+    "formatter": "detailed",
+    "filename": "./logs/heritagejewelers_logger.log",
+    "when": "midnight",
+    "interval": 1,
+    "backupCount": 30,
+    "delay": true
+  },
+  "changeclothings_logger_handler": {
+    "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+    "formatter": "detailed",
+    "filename": "./logs/changeclothings_logger.log",
+    "when": "midnight",
+    "interval": 1,
+    "backupCount": 30,
+    "delay": true
+  },
+  "outfitters_logger_handler": {
+    "class": "concurrent_log_handler.ConcurrentTimedRotatingFileHandler",
+    "formatter": "detailed",
+    "filename": "./logs/outfitters_logger.log",
+    "when": "midnight",
+    "interval": 1,
+    "backupCount": 30,
+    "delay": true
+  }
 
+      },
+      "loggers": {
+        "zeenwoman": {
+          "handlers": ["zeenwoman_handler"],
+          "level": "DEBUG"
+        },
+        "wovworld": {
+          "handlers": ["wovworld_handler"],
+          "level": "DEBUG"
+        },
+        "sulafah": {
+          "handlers": ["sulafah_handler"],
+          "level": "DEBUG"
+        },
+        "sputnik": {
+          "handlers": ["sputnik_handler"],
+          "level": "DEBUG"
+        },
+        "speedsports": {
+          "handlers": ["speedSports_handler"],
+          "level": "DEBUG"
+        },
+        "sheepofficial": {
+          "handlers": ["sheepOfficial_handler"],
+          "level": "DEBUG"
+        },
+        "shaffer": {
+          "handlers": ["shaffer_handler"],
+          "level": "DEBUG"
+        },
+        "sapphire": {
+          "handlers": ["sapphire_handler"],
+          "level": "DEBUG"
+        },
+        "saya": {
+          "handlers": ["saya_handler"],
+          "level": "DEBUG"
+        },
+        "sanasafinaz": {
+          "handlers": ["sanasafinaz_handler"],
+          "level": "DEBUG"
+        },
+        "saeedghani": {
+          "handlers": ["saeedghani_handler"],
+          "level": "DEBUG"
+        },
+        "cambridgeshop": {
+          "handlers": ["cambridgeshop_handler"],
+          "level": "DEBUG"
+        },
+        "outfitters": {
+          "handlers": ["outfitters_handler"],
+          "level": "DEBUG"
+        },
+        "nishatlinen": {
+          "handlers": ["nishatlinen_handler"],
+          "level": "DEBUG"
+        },
+        "chinyere": {
+          "handlers": ["chinyere_handler"],
+          "level": "DEBUG"
+        },
+        "Diner": {
+          "handlers": ["Diner_handler"],
+          "level": "DEBUG"
+        },
+        "beechtree": {
+          "handlers": ["beechtree_handler"],
+          "level": "DEBUG"
+        },
+        "hushpuppies": {
+          "handlers": ["hushpuppies_handler"],
+          "level": "DEBUG"
+        },
+        "ismailfareed": {
+          "handlers": ["ismailfareed_handler"],
+          "level": "DEBUG"
+        },
+        "amiradnan": {
+          "handlers": ["amiradnan_handler"],
+          "level": "DEBUG"
+        },
+        "ethinic": {
+          "handlers": ["ethinic_handler"],
+          "level": "DEBUG"
+        },
+        "generation_logger": {
+          "handlers": ["generation_logger_handler"],
+          "level": "DEBUG"
+        },
+        "image": {
+          "handlers": ["image_handler"],
+          "level": "DEBUG"
+        },
+        "almirah": {
+          "handlers": ["almirah_handler"],
+          "level": "DEBUG"
+        },
+        "alkaram": {
+          "handlers": ["alkaram_handler"],
+          "level": "DEBUG"
+        },
+        "khaddi_Website": {
+          "handlers": ["khaddi_Website_handler"],
+          "level": "DEBUG"
+        },
+        "ego": {
+          "handlers": ["ego_handler"],
+          "level": "DEBUG"
+        },
+        "insigma": {
+          "handlers": ["insigma_handler"],
+          "level": "DEBUG"
+        },
+        "NAKOOSH": {
+          "handlers": ["nakoosh_handler"],
+          "level": "DEBUG"
+        },
+        "1STSTEP": {
+          "handlers": ["firststep_handler"],
+          "level": "DEBUG"
+        }, 
+        "panache": {
+          "handlers": ["panache_handler"],
+          "level": "DEBUG"
+        },
+        "makeupcity": {
+          "handlers": ["makeupcity_handler"],
+          "level": "DEBUG"
+        },
+        "FHS": {
+          "handlers": ["fhs_handler"],
+          "level": "DEBUG"
+        },
+        "unbeatable_logger": {
+        "handlers": ["unbeatable_logger_handler"],
+        "level": "DEBUG"
+      },
+        "LimeLight": {
+          "handlers": ["limelight_handler"],
+          "level": "DEBUG"
+      },
+      "edenrobe": {
+        "handlers": ["edenrobe_handler"],
+        "level": "DEBUG"
+      },
+      "charcoal": {
+      "handlers": ["charcoal_handler"],
+      "level": "DEBUG"
+      },
+      "beejayslogger": {
+        "handlers": ["beejayslogger_handler"],
+        "level": "DEBUG"
+      },
+      "hunzacandles": {
+        "handlers": ["hunzacandles_handler"],
+        "level": "DEBUG"
+      },
+      "califord_logger": {
+        "handlers": ["califord_logger_handler"],
+        "level": "DEBUG"
+      },
+      "allurebeauty_logger": {
+        "handlers": ["allurebeauty_logger_handler"],
+        "level": "DEBUG"
+      },
+      "hopscotch_logger": {
+        "handlers": ["hopscotch_logger_handler"],
+        "level": "DEBUG"
+      },
+      "colorStudio": {
+        "handlers": ["colorstudio_logger_handler"],
+        "level": "DEBUG"
+      },
+      "binsaeed": {
+        "handlers": ["binsaeed_logger_handler"],
+        "level": "DEBUG"
+      },
+      "hangtanglogger": {
+        "handlers": ["hangtang_logger_handler"],
+        "level": "DEBUG"
+      },"RANGJA_logger": {
+        "handlers": ["rangja_logger_handler"],
+        "level": "DEBUG"
+      },
+      "GIORDANDO_LOGGER": {
+      "handlers": ["giordando_logger_handler"],
+      "level": "DEBUG"
+    },
+    "SALITEX_LOGGER": {
+      "handlers": ["salitex_logger_handler"],
+      "level": "DEBUG"
+    },
+    "VITALITY_LOGGER": {
+      "handlers": ["vitality_logger_handler"],
+      "level": "DEBUG"
+    },
+    "HERITAGEJEWELERS_LOGGER": {
+      "handlers": ["heritagejewelers_logger_handler"],
+      "level": "DEBUG"
+    },
+    "CHANGECLOTHINGS_LOGGER": {
+      "handlers": ["changeclothings_logger_handler"],
+      "level": "DEBUG"
+    },
+    "OUTFITTERS_LOGGER": {
+      "handlers": ["outfitters_logger_handler"],
+      "level": "DEBUG"
+    }
 
-  },
-  "loggers": {
-    "zeenwoman": {
-      "handlers": ["zeenwoman_handler"],
-      "level": "DEBUG"
-    },
-    "wovworld": {
-      "handlers": ["wovworld_handler"],
-      "level": "DEBUG"
-    },
-    "sulafah": {
-      "handlers": ["sulafah_handler"],
-      "level": "DEBUG"
-    },
-    "sputnik": {
-      "handlers": ["sputnik_handler"],
-      "level": "DEBUG"
-    },
-    "speedsports": {
-      "handlers": ["speedSports_handler"],
-      "level": "DEBUG"
-    },
-    "sheepofficial": {
-      "handlers": ["sheepOfficial_handler"],
-      "level": "DEBUG"
-    },
-    "shaffer": {
-      "handlers": ["shaffer_handler"],
-      "level": "DEBUG"
-    },
-    "sapphire": {
-      "handlers": ["sapphire_handler"],
-      "level": "DEBUG"
-    },
-    "saya": {
-      "handlers": ["saya_handler"],
-      "level": "DEBUG"
-    },
-    "sanasafinaz": {
-      "handlers": ["sanasafinaz_handler"],
-      "level": "DEBUG"
-    },
-    "saeedghani": {
-      "handlers": ["saeedghani_handler"],
-      "level": "DEBUG"
-    },
-    "cambridgeshop": {
-      "handlers": ["cambridgeshop_handler"],
-      "level": "DEBUG"
-    },
-    "outfitters": {
-      "handlers": ["outfitters_handler"],
-      "level": "DEBUG"
-    },
-    "nishatlinen": {
-      "handlers": ["nishatlinen_handler"],
-      "level": "DEBUG"
-    },
-    "chinyere": {
-      "handlers": ["chinyere_handler"],
-      "level": "DEBUG"
-    },
-    "Diner": {
-      "handlers": ["Diner_handler"],
-      "level": "DEBUG"
-    },
-    "beechtree": {
-      "handlers": ["beechtree_handler"],
-      "level": "DEBUG"
-    },
-    "hushpuppies": {
-      "handlers": ["hushpuppies_handler"],
-      "level": "DEBUG"
-    },
-    "ismailfareed": {
-      "handlers": ["ismailfareed_handler"],
-      "level": "DEBUG"
-    },
-    "amiradnan": {
-      "handlers": ["amiradnan_handler"],
-      "level": "DEBUG"
-    },
-    "ethinic": {
-      "handlers": ["ethinic_handler"],
-      "level": "DEBUG"
-    },
-    "generation_logger": {
-      "handlers": ["generation_logger_handler"],
-      "level": "DEBUG"
-    },
-    "image": {
-      "handlers": ["image_handler"],
-      "level": "DEBUG"
-    },
-    "almirah": {
-      "handlers": ["almirah_handler"],
-      "level": "DEBUG"
-    },
-    "alkaram": {
-      "handlers": ["alkaram_handler"],
-      "level": "DEBUG"
-    },
-    "khaddi_Website": {
-      "handlers": ["khaddi_Website_handler"],
-      "level": "DEBUG"
-    },
-    "ego": {
-      "handlers": ["ego_handler"],
-      "level": "DEBUG"
-    },
-    "insigma": {
-      "handlers": ["insigma_handler"],
-      "level": "DEBUG"
-    },
-    "NAKOOSH": {
-      "handlers": ["nakoosh_handler"],
-      "level": "DEBUG"
-    },
-    "1STSTEP": {
-      "handlers": ["firststep_handler"],
-      "level": "DEBUG"
-    }, 
-    "panache": {
-      "handlers": ["panache_handler"],
-      "level": "DEBUG"
-    },
-    "makeupcity": {
-      "handlers": ["makeupcity_handler"],
-      "level": "DEBUG"
-    },
-    "FHS": {
-      "handlers": ["fhs_handler"],
-      "level": "DEBUG"
-    },
-    "unbeatable_logger": {
-    "handlers": ["unbeatable_logger_handler"],
-    "level": "DEBUG"
-  },
-     "LimeLight": {
-      "handlers": ["limelight_handler"],
-      "level": "DEBUG"
-  },
-  "edenrobe": {
-    "handlers": ["edenrobe_handler"],
-    "level": "DEBUG"
-  },
-  "charcoal": {
-  "handlers": ["charcoal_handler"],
-  "level": "DEBUG"
-},
-"beejayslogger": {
-  "handlers": ["beejayslogger_handler"],
-  "level": "DEBUG"
-},
-"hunzacandles": {
-  "handlers": ["hunzacandles_handler"],
-  "level": "DEBUG"
-}
   }
 }

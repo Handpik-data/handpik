@@ -38,6 +38,19 @@ from scrapers.EdenRobe.scraper import EdenRobeScrapper
 from scrapers.charcoal.scraper import CharCoalScraper 
 from scrapers.Beejays.scraper import BeejaysScraper 
 from scrapers.Hunzacandles.scraper import HunzaCandlesScraper 
+from scrapers.califord.scraper import CalifordScrapper 
+from scrapers.allurebeauty.scraper import AllurebeautyScraper 
+from scrapers.hopscotch.scraper import HopscotchScraper 
+from scrapers.colorstudio.scraper import ColoStudioScraper 
+from scrapers.binsareed.scraper import BinSaeedScraper 
+from scrapers.hangtang.scraper import HangtanScraper 
+from scrapers.rangja.scraper import RangjaScraper 
+from scrapers.Giodarndo.scraper import GiordandoScraper 
+from scrapers.salitax.scraper import SalitaxScraper 
+from scrapers.vitality.scraper import VitalityScraper 
+from scrapers.heritagejewelers.scraper import HeritageJewelersScraper 
+from scrapers.changeclothing.scraper import ChangeClothingsScraper 
+from scrapers.outfitters.scraper import OutfiterScraper 
 
 
 
@@ -85,7 +98,22 @@ async def main():
         EdenRobeScrapper(),
         CharCoalScraper(),
         BeejaysScraper(),
-        HunzaCandlesScraper()
+        HunzaCandlesScraper(),
+        CalifordScrapper(),
+        AllurebeautyScraper(),
+        HopscotchScraper(),
+        ColoStudioScraper(),
+        BinSaeedScraper(),
+        HangtanScraper(),
+        RangjaScraper(),
+        GiordandoScraper(),
+        SalitaxScraper(),
+        VitalityScraper(),
+        HeritageJewelersScraper(),
+        ChangeClothingsScraper(),
+        OutfiterScraper()
+
+
 
 
 

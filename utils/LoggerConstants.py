@@ -38,7 +38,19 @@ EDENROBE_LOGGER="edenrobe"
 Charcoal_LOGGER="charcoal"
 BEEJAYS_LOGGER="beejayslogger"
 HUNZACANDLES_LOGGER ="hunzacandles"
-
+CALIFORD_LOGGER = "califord_logger"
+ALLUREBEAUTY_LOGGER = "allurebeauty_logger"
+HopScotch_LOGGER = "HOPSCOTCH_LOGGER"
+COLORSTUDIOPRO_LOGGER = "colorStudio"
+BINSAEED_LOGGER="binsaeed"
+HANGTANG_LOGGER = "hangtanglogger"
+RANGJA_LOGGER = "RANGJA_logger"
+Giordando_LOGGER = "GIORDANDO_LOGGER"
+SALITEX_LOGGER = "salitex_logger"
+VITALITY_LOGGER = "vitality_logger"
+HERITAGEJEWELERS_LOGGER = "heritagejewelers_logger"
+CHANGECLOTHINGS_LOGGER= "changeclothings"
+OUTFITTERS_LOGGER = "outfitters_logger"
 
 
 
