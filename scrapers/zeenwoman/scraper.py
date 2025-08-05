@@ -162,19 +162,31 @@ class ZeeWomanScraper(BaseScraper):
                             else:
                                 product_data['attributes'][key] = value
 
-            media_container = soup.find('div', {'class': 't4s-product__media-wrapper'})
+            product_slider = soup.find('section', class_='product-slider')
+            if product_slider:
+                image_containers = product_slider.find_all('div', class_='product-slider__image')
                 
-            if media_container:
-                media_items = media_container.find_all('div', {'data-main-slide': True})
-                
-                for item in media_items:
-                    img_tag = item.find('img', {'data-master': True})
-                    if img_tag and img_tag.has_attr('data-master'):
-                        img_url = img_tag['data-master']
-                        img_url = f"https:{img_url}" if img_url.startswith('//') else img_url
+                for container in image_containers:
+                    if container.has_attr('data-zoom'):
+                        img_url = container['data-zoom']
+                    else:
+                        anchor = container.find('a', {'data-fancybox': 'gallery'})
+                        if anchor and anchor.has_attr('data-src'):
+                            img_url = anchor['data-src']
+                        else:
+                            img = container.find('img')
+                            if img and img.has_attr('src'):
+                                img_url = img['src']
+                            else:
+                                continue
+                    
+                    if img_url.startswith('//'):
+                        img_url = f'https:{img_url}'
+                    elif img_url.startswith('/'):
+                        img_url = f'{self.base_url}{img_url}'
                         
-                        if img_url not in product_data['images']:
-                            product_data['images'].append(img_url)
+                    if img_url not in product_data['images']:
+                        product_data['images'].append(img_url)
 
             variants_tag = soup.find('script', class_='pr_variants_json')
             if variants_tag:
