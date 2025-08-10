@@ -106,21 +106,6 @@ async def insert_products(pool, table_name, products):
     
     async with pool.acquire() as conn:
         for product in products:    
-            if isinstance(availability, str):
-                truthy = ['true', 'yes', 'available', '1', 'in stock']
-                falsy = ['false', 'no', '0', 'not available', 'out of stock', 'unavailable']
-                cleaned = availability.lower().strip()
-                
-                if cleaned in truthy:
-                    availability = True
-                elif cleaned in falsy:
-                    availability = False
-                else:
-                    availability = None 
-            elif isinstance(availability, (bool, type(None))):
-                pass
-            else:
-                availability = None
             
             base_values = [
                 product.get('store_name'),
@@ -132,7 +117,7 @@ async def insert_products(pool, table_name, products):
                 float(product.get('sale_price')) if product.get('sale_price') is not None else None,
                 json.dumps(product.get('images') or []),     
                 product.get('brand'),
-                availability,
+                product.get('availability'),
                 json.dumps(product.get('category') or []), 
                 product.get('product_url'),
                 json.dumps(product.get('variants') or []), 
