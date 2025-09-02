@@ -317,7 +317,8 @@ class ImageScraper(BaseScraper):
             self.log_error(f"Error scraping PDP {product_link}: {str(e)}")
 
         return product_data
-
+    
+    #pagination_updated
     async def scrape_products_links(self, url):
         try:
             all_product_links = set()
@@ -328,7 +329,6 @@ class ImageScraper(BaseScraper):
                 response = await self.async_make_request(current_url)
                 soup = BeautifulSoup(response.text, "html.parser")
 
-                # ✅ Find all product <a> tags
                 for tag in soup.select('a.card__link-product[href^="/products/"]'):
                     href = tag.get("href")
                     if href:
@@ -337,11 +337,11 @@ class ImageScraper(BaseScraper):
 
                 self.log_info(f"Collected {len(all_product_links)} product links so far.")
 
-                # ✅ Pagination handling
+                
                 next_page_tag = (
-                    soup.select_one("#Huratips-Pagination a")  # custom pagination
-                    or soup.select_one("ul.pagination a.next")  # shopify default
-                    or soup.select_one("nav.pagination a[rel='next']")  # alternative
+                    soup.select_one("#Huratips-Pagination a")  
+                    or soup.select_one("ul.pagination a.next")  
+                    or soup.select_one("nav.pagination a[rel='next']")  
                 )
 
                 if next_page_tag and next_page_tag.get("href"):
@@ -368,6 +368,8 @@ class ImageScraper(BaseScraper):
                 all_products.append(pdp_data)
 
         return all_products
+
+    
 
     async def scrape_data(self):
         final_data = []
