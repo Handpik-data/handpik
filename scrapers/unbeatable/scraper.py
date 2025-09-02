@@ -308,33 +308,39 @@ class UnbeatableScraper(BaseScraper):
 
 
     async def scrape_products_links(self, start_url):
-        from urllib.parse import urljoin
+  
 
-        all_product_links = set()  # Using set to avoid duplicates
+        all_product_links = set()
         current_url = start_url
 
         while current_url:
             try:
                 self.log_info(f"Scraping: {current_url}")
                 response = await self.async_make_request(current_url)
-                soup = BeautifulSoup(response.text, 'html.parser')
+                soup = BeautifulSoup(response.text, "html.parser")
 
-                # Get all <a> tags with class 'product-image'
-                product_links = soup.select('a.product-image')
+                # ✅ FIX: Select product links using class="product-image"
+                product_links = soup.select("a.product-image")
                 if product_links:
                     for tag in product_links:
-                        href = tag.get('href')
+                        href = tag.get("href")
                         if href:
+                            # handle relative or absolute URLs
                             full_url = urljoin(self.base_url, href)
                             all_product_links.add(full_url)
                     self.log_info(f"Collected {len(all_product_links)} total product links so far.")
                 else:
                     self.log_info("No product links found on this page.")
 
-                # Check for next page
-                next_page_tag = soup.select_one('a.next')
-                if next_page_tag and next_page_tag.get('href'):
-                    next_href = next_page_tag.get('href')
+                # ✅ FIX: Pagination handling (for Magento/Unbeatable style sites)
+                next_page_tag = (
+                    soup.select_one("a.next")  # typical next button
+                    or soup.select_one("li.pages-item-next a")  # Magento pagination
+                    or soup.select_one("ul.pagination a.next")  # fallback
+                )
+
+                if next_page_tag and next_page_tag.get("href"):
+                    next_href = next_page_tag.get("href")
                     current_url = urljoin(self.base_url, next_href)
                 else:
                     self.log_info("No next page found. Ending scraping.")
@@ -346,6 +352,7 @@ class UnbeatableScraper(BaseScraper):
 
         self.log_info(f"Total collected {len(all_product_links)} product links.")
         return list(all_product_links)
+
 
 
          
