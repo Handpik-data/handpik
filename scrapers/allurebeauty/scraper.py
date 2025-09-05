@@ -242,7 +242,6 @@ class AllurebeautyScraper(BaseScraper):
 
 
     async def scrape_products_links(self, url):
-        from urllib.parse import urljoin
 
         all_product_links = []
         current_url = url
@@ -270,8 +269,8 @@ class AllurebeautyScraper(BaseScraper):
 
                 self.log_info(f"Collected {len(all_product_links)} product links so far.")
 
-                # Pagination: look for next page link (update selector as per your site's pagination)
-                next_page_link = soup.select_one('a.next')  # Adjust if your pagination class is different
+                # Pagination: look for "Load more" link inside collection__infinite-trigger
+                next_page_link = soup.select_one('div.collection__infinite-trigger a[data-click-to-load]')
                 if next_page_link:
                     next_href = next_page_link.get('href')
                     if next_href:
@@ -281,7 +280,7 @@ class AllurebeautyScraper(BaseScraper):
                         self.log_info("Next page href not found. Stopping pagination.")
                         break
                 else:
-                    self.log_info("No next page link found. Finished scraping all pages.")
+                    self.log_info("No 'Load more' link found. Finished scraping all pages.")
                     break
 
             except Exception as e:
@@ -290,7 +289,6 @@ class AllurebeautyScraper(BaseScraper):
 
         self.log_info(f"Total collected {len(all_product_links)} product links.")
         return all_product_links
-
 
 
          
