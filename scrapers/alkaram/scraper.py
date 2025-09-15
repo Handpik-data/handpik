@@ -52,7 +52,7 @@ class AlkaramScraper(BaseScraper):
             'images': [],
             'brand': None,
             'availability': None,
-            'category': None,  
+            'category': None,
             'product_url': product_link,
             'variants': [],
             "attributes": {},
@@ -64,103 +64,78 @@ class AlkaramScraper(BaseScraper):
             soup = BeautifulSoup(response.text, "html.parser")
 
             try:
-                title_tag = soup.select_one('h1.t4s-product__title')
+                title_tag = soup.select_one('h1.product-title.h5')
                 if title_tag:
                     product_data['title'] = title_tag.get_text(strip=True)
             except Exception as e:
                 return {'error': f'Exception occurred while extracting title: {str(e)}', 'product_link': product_link}
 
             try:
-                sku_element = soup.select_one('div.t4s-sku-wrapper span.t4s-sku-value')
+                sku_element = soup.select_one('div.product-info__block-item[data-block-type="sku"] variant-sku')
                 if sku_element:
-                    product_data['sku'] = sku_element.get_text(strip=True)
+                    product_data['sku'] = sku_element.get_text(strip=True).replace("SKU:", "").strip()
             except Exception as e:
                 return {'error': f'Exception occurred while extracting SKU: {str(e)}', 'product_link': product_link}
 
             try:
-                price_div = soup.find('div', class_='t4s-product-price')
-                original_price = sale_price = currency = None
-
-                if price_div:
-                    price_text = price_div.get_text(strip=True)
-
-                    currency_match = re.match(r'^([^\d\s]+)', price_text)
-                    if currency_match:
-                        currency = currency_match.group(1)
-
-                    price_numbers = re.findall(r'\d[\d,]*', price_text)
-                    price_numbers = [p.replace(',', '') for p in price_numbers]
-
-                    if len(price_numbers) >= 1:
-                        original_price = price_numbers[0]
-                    if len(price_numbers) >= 2:
-                        sale_price = price_numbers[1]
-
-                    data_price = price_div.get('data-price')
-                    if data_price and not original_price:
-                        original_price = str(int(data_price) // 100)
-
-                product_data['original_price'] = original_price
-                product_data['sale_price'] = sale_price
-                product_data['currency'] = currency  
-            except Exception as e:
-                return {'error': f'Exception occurred while extracting pricing: {str(e)}', 'product_link': product_link}
-
-            try:
-                image_elements = soup.select('img[data-master]')
+                image_elements = soup.select('img.object-contain')
                 for img in image_elements:
-                    src = img.get('data-master')
+                    src = img.get('src')
                     if src and src not in product_data['images']:
                         full_url = urljoin(self.base_url, src)
                         product_data['images'].append(full_url)
             except Exception as e:
                 return {'error': f'Exception occurred while extracting images: {str(e)}', 'product_link': product_link}
 
-            
-  
-            try:
-                size_container = soup.find('div', {'class': 't4s-swatch__list'})
-                if size_container:
-                    size_elements = size_container.find_all('div', {'data-swatch-item': ''})
-                    for size_element in size_elements:
-                        size_value = size_element.get_text(strip=True)
-
-                        is_available = 'is--soldout' not in size_element.get('class', [])
-
-                        variant_data = {
-                            'size': size_value,
-                            'availability': is_available  
-                        }
-
-                        product_data['variants'].append(variant_data)
-            except Exception as e:
-                return {'error': f'Exception occurred while extracting variants/sizes: {str(e)}', 'product_link': product_link}
-            
-                 
             try:
                 breadcrumb = soup.find('nav', class_='t4s-pr-breadcrumb')
                 breadcrumb_path = []
-
                 if breadcrumb:
                     items = breadcrumb.find_all(['a', 'span'])
                     for item in items:
                         text = item.get_text(strip=True)
-                        if text and text != 'Home': 
+                        if text and text != 'Home':
                             breadcrumb_path.append(text)
-
                 product_data['category'] = breadcrumb_path
-
             except Exception as e:
                 return {'error': f'Exception occurred while extracting breadcrumbs: {str(e)}', 'product_link': product_link}
 
+            try:
+                price_list = soup.find("price-list", class_="price-list--product")
+                original_price, sale_price, currency = None, None, None
+
+                if price_list:
+                    sale_tag = price_list.find("sale-price")
+                    if sale_tag:
+                        sale_price_text = sale_tag.get_text(strip=True)
+                        sale_price = ''.join(filter(str.isdigit, sale_price_text))
+                        if "PKR" in sale_price_text.upper():
+                            currency = "PKR"
+
+                    compare_tag = price_list.find("compare-at-price")
+                    if compare_tag:
+                        original_price_text = compare_tag.get_text(strip=True)
+                        original_price = ''.join(filter(str.isdigit, original_price_text))
+                        if not currency and "PKR" in original_price_text.upper():
+                            currency = "PKR"
+
+                    if not original_price and sale_price:
+                        original_price = sale_price
+                    if original_price and sale_price and original_price == sale_price:
+                        sale_price = None
+
+                product_data['original_price'] = original_price
+                product_data['sale_price'] = sale_price
+                product_data['currency'] = currency
+            except Exception as e:
+                return {'error': f'Exception occurred while extracting prices: {str(e)}'}
 
             try:
-
-                description_container = soup.find('div', id='t4s-tab-destemplate--16602647167156__main')
-               
+                description_container = soup.select_one('div.accordion__content.prose')
                 if description_container:
-
-                    product_data['description'] = description_container.get_text(separator="\n", strip=True)
+                    product_data['description'] = description_container.get_text(
+                        separator="\n", strip=True
+                    )
             except Exception as e:
                 self.log_debug(f"Exception occurred while scraping product's description: {e}")
 
@@ -168,43 +143,113 @@ class AlkaramScraper(BaseScraper):
                 breadcrumb_nav = soup.select_one('nav.t4s-pr-breadcrumb')
                 if breadcrumb_nav:
                     breadcrumb_items = []
-
                     breadcrumb_links = breadcrumb_nav.find_all('a')
                     for link in breadcrumb_links:
                         breadcrumb_items.append(link.get_text(strip=True))
-
                     breadcrumb_span = breadcrumb_nav.find('span')
                     if breadcrumb_span:
                         breadcrumb_items.append(breadcrumb_span.get_text(strip=True))
-
                     product_data['attributes']['breadcrumbs'] = breadcrumb_items
-
             except Exception as e:
-                return {'error': f'Exception occurred while extracting breadcrumbs: {str(e)}', 'product_link': product_link}
-
-
+                return {'error': f'Exception occurred while extracting breadcrumbs: {str(e)}'}
+            
+            try:
+                availability_tag = soup.select_one('div.product-info__block-item variant-inventory span')
+                if availability_tag:
+                    availability_text = availability_tag.get_text(strip=True).lower()
+                    product_data['availability'] = "in stock" in availability_text
             except Exception as e:
-                return {'error': f'Exception occurred while extracting breadcrumbs: {str(e)}', 'product_link': product_link}
+                self.log_debug(f"Exception occurred while scraping availability: {e}")
+
 
             try:
                 shipping_div = soup.find('div', id='t4s_tab_c1f78054-ee99-4f40-89e2-f342a6fcebc3')
                 if shipping_div:
-                    shipping_text = shipping_div.get_text(separator="\n", strip=True)
-                    product_data['raw_data']['shipping_and_handling'] = shipping_text
-
+                    product_data['raw_data']['shipping_and_handling'] = shipping_div.get_text(separator="\n", strip=True)
                 disclaimer_div = soup.find('div', class_='tab--disclaimer')
                 if disclaimer_div:
-                    disclaimer_text = disclaimer_div.get_text(separator=' ', strip=True)
-                    product_data['raw_data']['disclaimer'] = disclaimer_text
+                    product_data['raw_data']['disclaimer'] = disclaimer_div.get_text(separator=' ', strip=True)
+            except Exception as e:
+                return {'error': f'Exception occurred while extracting shipping/handling or disclaimer: {str(e)}'}
+
+            try:
+                material_fieldset = soup.find('fieldset', class_='variant-picker__option v-stack gap-2')
+                if material_fieldset:
+                    legend = material_fieldset.find('legend')
+                    if legend and "Fabric" in legend.get_text(strip=True):
+                        span_tag = material_fieldset.find('span')
+                        if span_tag:
+                            product_data['raw_data']['material'] = span_tag.get_text(strip=True)
+            except Exception as e:
+                self.log_debug(f"Exception occurred while scraping product's material: {e}")
+
+            try:
+                variants = []
+
+                fieldsets = soup.select("fieldset.variant-picker__option")
+
+                colors, fabrics, sizes = [], [], []
+
+                for fs in fieldsets:
+                    legend = fs.find("legend")
+                    legend_text = legend.get_text(strip=True) if legend else ""
+
+                    if "fabric" in legend_text.lower():
+                        group_type = "fabric"
+                    elif "color" in legend_text.lower():
+                        group_type = "color"
+                    else:
+                        group_type = "size"
+
+                    inputs = fs.select("input[type='radio']")
+                    for inp in inputs:
+                        label = fs.find("label", {"for": inp.get("id")})
+                        value = None
+                        if label:
+                            sr_span = label.select_one("span.sr-only")
+                            if sr_span:  
+                                value = sr_span.get_text(strip=True)
+                            else:
+                                value = label.get_text(strip=True)
+                        if value:
+                            is_disabled = "is-disabled" in (label.get("class", []) if label else [])
+                            item = {"value": value, "availability": not is_disabled}
+                            if group_type == "fabric":
+                                fabrics.append(item)
+                            elif group_type == "color":
+                                colors.append(item)
+                            else:
+                                sizes.append(item)
+
+                if not fabrics:
+                    fabrics = [{"value": "null", "availability": True}]
+                if not colors:
+                    colors = [{"value": "null", "availability": True}]
+                if not sizes:
+                    sizes = [{"value": "null", "availability": True}]
+
+                for s in sizes:
+                    for f in fabrics:
+                        for c in colors:
+                            availability = s["availability"] and f["availability"] and c["availability"]
+                            variants.append({
+                                "size": s["value"],
+                                "fabric": f["value"],
+                                "color": c["value"],
+                                "availability": availability
+                            })
+
+                product_data['variants'] = variants
 
             except Exception as e:
-                return {'error': f'Exception occurred while extracting shipping/handling or disclaimer: {str(e)}', 'product_link': product_link}
+                return {'error': f'Exception occurred while extracting variants: {str(e)}'}
 
 
         except Exception as e:
             self.log_error(f"Error scraping PDP {product_link}: {str(e)}")
 
         return product_data
+
 
 
     
@@ -218,7 +263,8 @@ class AlkaramScraper(BaseScraper):
                 self.log_info(f"Scraping page {page_number}: {current_url}")
                 response = await self.async_make_request(current_url)
                 soup = BeautifulSoup(response.text, 'html.parser')
-                product_links = soup.select('a.t4s-full-width-link')
+
+                product_links = soup.select('a.product-card__media')
 
                 if not product_links:
                     self.log_info(f"No products found on page {page_number}. Stopping.")
@@ -227,8 +273,12 @@ class AlkaramScraper(BaseScraper):
                 for link_tag in product_links:
                     href = link_tag.get('href')
                     if href:
-                        product_url = f"{self.base_url}{href}"
+                        product_url = f"{self.base_url}{href}" if href.startswith("/") else href
                         all_product_links.append(product_url)
+
+                        if len(all_product_links) >= 5:
+                            self.log_info("Collected 5 product links. Stopping.")
+                            return all_product_links
 
                 page_number += 1
                 current_url = f"{url}?page={page_number}" if "?" not in url else f"{url}&page={page_number}"
@@ -237,9 +287,9 @@ class AlkaramScraper(BaseScraper):
                 self.log_error(f"Error scraping page {page_number}: {e}")
                 break
 
-        # Debug: Print the collected links
         self.log_info(f"Collected {len(all_product_links)} product links.")
         return all_product_links
+
             
     async def scrape_category(self, url):
         all_products = []
