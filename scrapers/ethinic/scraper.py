@@ -75,9 +75,17 @@ class EthinicScraper(BaseScraper):
                 self.log_debug(f"Exception occurred while scraping product's title: {e}")
 
             try:
+                # First, check the original selector
                 sku_element = soup.select_one('div.t4s-sku-wrapper span.t4s-sku-value')
+
+                # If not found, check the new-product-style-id div
+                if not sku_element:
+                    sku_element = soup.select_one('div.new-product-style-id.mobile-hide span')
+
                 if sku_element:
                     product_data['sku'] = sku_element.get_text(strip=True)
+                else:
+                    self.log_debug("SKU not found on this page.")
             except Exception as e:
                 self.log_debug(f"Exception occurred while scraping product SKU: {e}")
 
@@ -170,22 +178,21 @@ class EthinicScraper(BaseScraper):
                 self.log_debug(f"Exception occurred while extracting product images and variants: {e}")
                 product_data["images"] = []
             
+            
             try:
-          
-                title_tag = soup.find("title")
-                product_title = title_tag.get_text(strip=True) if title_tag else "Unknown Product"
-
+                # ✅ Fetch homepage menu to identify category hierarchy
                 menu_response = await self.async_make_request("https://pk.ethnc.com")
                 menu_soup = BeautifulSoup(menu_response.text, "html.parser")
 
                 category_path = []
 
+                # Go through main <li> elements with class main_li
                 for main_li in menu_soup.find_all("li", class_="main_li"):
                     main_a = main_li.find("a")
-                    if not main_a:
+                    if not main_a or "href" not in main_a.attrs:
                         continue
 
-                    main_category_name = main_a.get_text(strip=True)
+                    main_cat_name = main_a.get_text(strip=True)
                     matched = False
 
                     submenu = main_li.find("div", class_="new_submenu_accordian")
@@ -193,30 +200,43 @@ class EthinicScraper(BaseScraper):
                         for child_li in submenu.find_all("li", class_="child_li"):
                             child_a = child_li.find("a")
                             if child_a and "href" in child_a.attrs:
-                                sub_url = child_a["href"]
+                                sub_url = child_a["href"].strip()
+                                # Match subcategory URL or slug inside product link
                                 if sub_url in product_link or sub_url.split("/")[-1] in product_link:
-                                    category_path = [main_category_name, child_a.get_text(strip=True)]
+                                    category_path = [main_cat_name, child_a.get_text(strip=True)]
                                     matched = True
                                     break
 
-                    elif "href" in main_a.attrs and main_a["href"] in product_link:
-                        category_path = [main_category_name]
+                    # Check direct match if no submenu
+                    elif main_a["href"] in product_link or main_a["href"].split("/")[-1] in product_link:
+                        category_path = [main_cat_name]
                         matched = True
 
                     if matched:
                         break
 
-                if product_title:
-                    # Split by dash, remove empty, strip each part
-                    split_parts = [part.strip() for part in re.split(r'–|-', product_title) if part.strip()]
-                    category_path.extend(split_parts)
+                # 🧠 If no match found, fallback to parsing product title
+                if not category_path:
+                    title_tag = soup.find("title")
+                    if title_tag:
+                        title_parts = [
+                            p.strip() for p in re.split(r'–|-', title_tag.get_text(strip=True)) if p.strip()
+                        ]
+                        category_path.extend(title_parts)
 
-                product_data['category'] = category_path
+                # 🧹 Remove empty and site-name terms
+                category_path = [
+                    c for c in category_path if c and "ethnc" not in c.lower()
+                ]
+
+                product_data["category"] = category_path if category_path else []
 
             except Exception as e:
                 self.log_debug(f"Exception occurred while scraping category path: {e}")
-                product_data['category'] = None
+                product_data["category"] = []
 
+            
+ 
 
             try:
                 short_desc_div = soup.select_one('div.new-product-short-description .metafield-rich_text_field')
@@ -376,7 +396,7 @@ class EthinicScraper(BaseScraper):
                     products = await self.scrape_category(url)
                     final_data.extend(products)
                 if final_data:
-                    saved_path = await self.save_data(final_data)  
+                    saved_path = await self.save_data(final_data)  # ✅ FIXED
                     if saved_path:
                         self.log_info(f"Total {len(category_urls)} categories")
                         self.log_info(f"Saved {len(final_data)} products to {saved_path}")
